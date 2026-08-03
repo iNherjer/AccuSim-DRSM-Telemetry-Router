@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'">
+  <title>AccuSim DRSM Telemetry Router</title>
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <main class="shell">
+    <header class="hero">
+      <div class="brand-mark" aria-hidden="true">
+        <span class="route-dot input-dot"></span>
+        <span class="route-line"></span>
+        <span class="route-dot output-dot"></span>
+      </div>
+      <div>
+        <p class="eyebrow">ACCUSIM · SIMCONNECT · DCS V2</p>
+        <h1>Telemetry Router</h1>
+        <p id="versionLine" class="subtle">Konfigurierbare DRSM-Bridge</p>
+      </div>
+      <span id="processBadge" class="badge waiting">Bereit</span>
+    </header>
+
+    <section class="status-grid" aria-label="Status">
+      <article class="status-card">
+        <span id="simDot" class="status-dot waiting"></span>
+        <div><small>MSFS / SimConnect</small><strong id="simStatus">Nicht verbunden</strong></div>
+      </article>
+      <article class="status-card">
+        <span id="udpDot" class="status-dot waiting"></span>
+        <div><small>DRSM DCS UDP</small><strong id="udpStatus">Gestoppt</strong></div>
+      </article>
+      <article class="status-card">
+        <small>Abtastrate</small><strong id="sampleRate">0,0 Hz</strong>
+      </article>
+      <article class="status-card">
+        <small>Pakete</small><strong id="packetCount">0</strong>
+      </article>
+    </section>
+
+    <section class="panel connection-panel">
+      <div class="panel-heading">
+        <div>
+          <p class="eyebrow">VERBINDUNG</p>
+          <h2>DCS-v2-Ausgabe</h2>
+        </div>
+        <div class="header-actions">
+          <button id="openFolderButton" class="text-button" type="button">Konfigurationsordner</button>
+          <span id="saveStatus" class="save-status">Gespeichert</span>
+        </div>
+      </div>
+      <div class="settings-grid">
+        <label><span>Paketname</span><input id="nameInput" maxlength="100"></label>
+        <label><span>DRSM Host</span><input id="hostInput" maxlength="255"></label>
+        <label><span>UDP-Port</span><input id="portInput" type="number" min="1" max="65535"></label>
+        <label><span>Abtastung</span>
+          <select id="periodSelect">
+            <option value="visual">Visual Frame</option>
+            <option value="sim">Sim Frame</option>
+          </select>
+        </label>
+      </div>
+      <p class="hint">DRSM als Quelle <strong>DCS World</strong> mit Port 4135 verwenden. Änderungen an Quellen oder Abtastung verbinden SimConnect automatisch neu.</p>
+      <div class="action-row">
+        <button id="startButton" class="primary-button" type="button">Bridge starten</button>
+        <button id="stopButton" class="secondary-button" type="button">Stoppen</button>
+        <button id="disableAllButton" class="secondary-button" type="button">Alle Kanäle aus</button>
+        <button id="resetButton" class="text-button danger" type="button">Standardzuordnung wiederherstellen</button>
+      </div>
+      <p id="runtimeDetail" class="runtime-detail">Bridge ist nicht gestartet.</p>
+    </section>
+
+    <section class="panel mapping-panel">
+      <div class="panel-heading mapping-heading">
+        <div>
+          <p class="eyebrow">KANÄLE</p>
+          <h2>SimConnect-Eingang → DCS-Ausgang</h2>
+        </div>
+        <div class="mapping-tools">
+          <button id="expertToggleButton" class="mode-button" type="button" aria-pressed="false">
+            <span>Expert</span><small>aus</small>
+          </button>
+          <label class="filter-label"><span>Ausgänge filtern</span><input id="filterInput" placeholder="z. B. RPM, vertical"></label>
+        </div>
+      </div>
+      <p id="viewHint" class="mode-hint">Basisansicht: nur die für den Comanche-Test relevanten Motion- und Motorkanäle.</p>
+      <div class="legend">
+        <span>Ein</span><span>Eingangsquelle</span><span class="expert-only">Format</span><span class="expert-only">Rechenart</span><span class="expert-only">Faktor</span><span class="expert-only">Offset</span><span>Eingang live</span><span>DCS-Ausgang</span><span>Ausgabe live</span>
+      </div>
+      <div id="mappingGroups" class="mapping-groups"></div>
+    </section>
+
+    <section id="customSourcesPanel" class="panel sources-panel expert-only-section">
+      <div class="panel-heading">
+        <div>
+          <p class="eyebrow">EIGENE QUELLEN</p>
+          <h2>LVars hinzufügen</h2>
+        </div>
+      </div>
+      <form id="customSourceForm" class="source-form">
+        <label><span>Anzeigename</span><input id="customLabelInput" required maxlength="100" placeholder="A2A Turbulence"></label>
+        <label><span>SimConnect-/LVar-Name</span><input id="customVarInput" required maxlength="180" placeholder="L:My_Custom_Value"></label>
+        <label><span>Physikalisches Format</span><select id="customUnitSelect"></select></label>
+        <button class="primary-button add-button" type="submit">+ Hinzufügen</button>
+      </form>
+      <p class="hint">Eigene LVars werden über SimConnect als <code>number</code> gelesen. Das gewählte Format beschreibt ihre tatsächliche physikalische Bedeutung für die Umrechnung.</p>
+      <div id="customSourceList" class="custom-source-list"></div>
+    </section>
+
+    <details id="packetPanel" class="panel packet-panel expert-only-section">
+      <summary>
+        <span>Letztes DCS-v2-Paket</span>
+        <span id="packetSummary" class="summary-status">Noch keine Telemetrie</span>
+      </summary>
+      <pre id="packetPreview">Bridge starten, um die JSON-Ausgabe zu sehen.</pre>
+    </details>
+  </main>
+  <script src="./renderer.js"></script>
+</body>
+</html>

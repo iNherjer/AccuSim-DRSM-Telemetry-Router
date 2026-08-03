@@ -1,0 +1,181 @@
+'use strict';
+
+const assert = require('node:assert/strict');
+const test = require('node:test');
+const { BUILTIN_SOURCES, OUTPUTS, buildDefaultConfig } = require('../lib/catalog');
+const { RouterCore, normalizeConfig, operationCompatible } = require('../lib/router-core');
+
+function close(actual, expected, epsilon = 1e-9) {
+  assert(Math.abs(actual - expected) <= epsilon, `expected ${expected}, got ${actual}`);
+}
+
+test('default mapping emits the validated essential Comanche channels', () => {
+  const core = new RouterCore(buildDefaultConfig());
+  const result = core.update({
+    'a2a.acc.x': 9.80665,
+    'a2a.acc.y': 19.6133,
+    'a2a.acc.z': 29.41995,
+    'std.angular.body.x': 1,
+    'std.angular.body.y': 2,
+    'std.angular.body.z': 3,
+    'std.velocity.world.x': 10,
+    'std.velocity.world.y': 20,
+    'std.velocity.world.z': 30,
+    'std.pitch': 10,
+    'std.bank': 20,
+    'std.heading': 90,
+    'std.alt.agl': 1000,
+    'std.alt.msl': 2000,
+    'std.airspeed.tas': 100,
+    'std.airspeed.ias': 90,
+    'std.aoa': 5,
+    'std.aos': 0.1,
+    'std.mach': 0.2,
+    'std.wind.x': 1,
+    'std.wind.y': 2,
+    'std.wind.z': 3,
+    'a2a.stall': 1,
+    'a2a.engine.rpm': 2400,
+    'std.gear.left': 1,
+    'std.gear.center': 1,
+    'std.gear.right': 1,
+    'std.flaps': 0.25,
+    'a2a.canopy': 50,
+    'std.gear': 1
+  }, 10);
+  assert.deepEqual(result.packet.acc, [1, 3, 2]);
+  assert.deepEqual(result.packet.ang_vel, [1, 3, 2]);
+  close(result.packet.pitch, Math.PI / 18);
+  close(result.packet.roll, Math.PI / 9);
+  close(result.packet.yaw, -Math.PI / 2);
+  close(result.packet.alt_agl, 304.8);
+  close(result.packet.ias, 46.3);
+  assert.equal(result.packet.stall, 1);
+  assert.equal(result.packet.rpm_left, 2400);
+  assert.equal(result.packet.prop_rpm, 2400);
+  assert.equal(result.packet.vel, undefined);
+  assert.equal(result.packet.gear_left, undefined);
+  assert.equal(result.packet.flaps, undefined);
+  assert.equal(result.packet.v, 2);
+  assert.equal(result.packet.name, 'A2A_PA24_250_Comanche_MSFS');
+  assert.deepEqual(result.errors, {});
+});
+
+test('individual channels can be disabled and omitted', () => {
+  const config = buildDefaultConfig();
+  Object.values(config.channels).forEach((channel) => { channel.enabled = false; });
+  config.channels.rpm_left.enabled = true;
+  const core = new RouterCore(config);
+  const result = core.update({ 'a2a.engine.rpm': 1234 }, 0);
+  assert.equal(result.packet.rpm_left, 1234);
+  assert.equal(result.packet.acc, undefined);
+  assert.deepEqual(Object.keys(result.packet), ['v', 'name', 't', 'rpm_left']);
+});
+
+test('angular acceleration is integrated only when explicitly selected', () => {
+  const config = buildDefaultConfig();
+  Object.values(config.channels).forEach((channel) => { channel.enabled = false; });
+  config.channels['ang_vel.0'] = {
+    enabled: true,
+    sourceId: 'a2a.rotacc.x',
+    inputUnit: 'radps2',
+    operation: 'integrate',
+    scale: 1,
+    offset: 0
+  };
+  const core = new RouterCore(config);
+  core.update({ 'a2a.rotacc.x': 2 }, 0);
+  const result = core.update({ 'a2a.rotacc.x': 2 }, 0.5);
+  close(result.packet.ang_vel[0], 0, 1e-12); // Gap protection resets integrations above 250 ms.
+  const second = core.update({ 'a2a.rotacc.x': 2 }, 0.6);
+  close(second.packet.ang_vel[0], 0.2, 1e-12);
+});
+
+test('incompatible direct units are reported per channel', () => {
+  const config = buildDefaultConfig();
+  Object.values(config.channels).forEach((channel) => { channel.enabled = false; });
+  config.channels['ang_vel.0'] = {
+    enabled: true,
+    sourceId: 'a2a.rotacc.x',
+    inputUnit: 'radps2',
+    operation: 'direct',
+    scale: 1,
+    offset: 0
+  };
+  const result = new RouterCore(config).update({ 'a2a.rotacc.x': 3 }, 0);
+  assert.match(result.errors['ang_vel.0'], /kann nicht/);
+  assert.equal(result.packet.ang_vel, undefined);
+});
+
+test('custom LVars are normalized and survive valid mappings', () => {
+  const config = buildDefaultConfig();
+  config.customSources.push({
+    id: 'custom.buffet',
+    label: 'Buffet',
+    simVar: 'L:My_Buffet',
+    simConnectUnit: 'number',
+    inputUnit: 'percent'
+  });
+  config.channels.shake = {
+    enabled: true,
+    sourceId: 'custom.buffet',
+    inputUnit: 'percent',
+    operation: 'direct',
+    scale: 1,
+    offset: 0
+  };
+  const normalized = normalizeConfig(config);
+  assert.equal(normalized.customSources[0].simVar, 'L:My_Buffet');
+  const result = new RouterCore(normalized).update({ 'custom.buffet': 25 }, 0);
+  close(result.packet.shake, 0.25);
+});
+
+test('supported calculus combinations are explicit', () => {
+  assert.equal(operationCompatible('integrate', 'angularAcceleration', 'angularVelocity'), true);
+  assert.equal(operationCompatible('direct', 'angularAcceleration', 'angularVelocity'), false);
+  assert.equal(operationCompatible('differentiate', 'velocity', 'acceleration'), true);
+});
+
+test('catalog covers every documented numeric DCS-v2 telemetry field', () => {
+  const actual = new Set(OUTPUTS.map((entry) => entry.packetKey));
+  const expected = new Set([
+    'acc', 'ang_vel', 'vel', 'pitch', 'roll', 'yaw', 'alt_agl', 'alt_msl', 'tas',
+    'aoa', 'aos', 'ias', 'mach', 'wind', 'shake', 'panel_shake', 'stall',
+    'rpm_left', 'rpm_right', 'prop_rpm', 'rotor_rpm',
+    'gear_left', 'gear_nose', 'gear_right', 'flaps', 'speedbrakes', 'canopy', 'gear', 'afterburner',
+    'cannon_rounds_fired', 'missiles_released', 'bombs_released', 'rockets_released',
+    'flares_released', 'chaff_released', 'damage_total'
+  ]);
+  assert.deepEqual(actual, expected);
+});
+
+test('basic view exposes only relevant standard and A2A sources', () => {
+  const sourceIds = new Set(BUILTIN_SOURCES.map((entry) => entry.id));
+  const basicOutputs = OUTPUTS.filter((entry) => entry.basic);
+  assert.deepEqual(basicOutputs.map((entry) => entry.id), [
+    'acc.0', 'acc.1', 'acc.2', 'ang_vel.0', 'ang_vel.1', 'ang_vel.2',
+    'pitch', 'roll', 'yaw', 'alt_agl', 'ias', 'stall', 'rpm_left', 'prop_rpm'
+  ]);
+  for (const output of basicOutputs) {
+    assert(output.simpleSources.length >= 1 && output.simpleSources.length <= 2);
+    for (const rule of output.simpleSources) {
+      assert.equal(sourceIds.has(rule.sourceId), true, `${output.id}: ${rule.sourceId}`);
+      assert.equal(['std.', 'a2a.'].some((prefix) => rule.sourceId.startsWith(prefix)), true);
+      assert.equal(['direct', 'integrate'].includes(rule.operation), true);
+    }
+  }
+});
+
+test('legacy full default is migrated to the reduced basic output set', () => {
+  const legacy = buildDefaultConfig();
+  legacy.schemaVersion = 1;
+  legacy.expertMode = true;
+  legacy.channels['vel.0'].enabled = true;
+  legacy.channels.gear_left.enabled = true;
+  const normalized = normalizeConfig(legacy);
+  assert.equal(normalized.schemaVersion, 2);
+  assert.equal(normalized.expertMode, true);
+  assert.equal(normalized.channels['acc.0'].enabled, true);
+  assert.equal(normalized.channels['vel.0'].enabled, false);
+  assert.equal(normalized.channels.gear_left.enabled, false);
+});

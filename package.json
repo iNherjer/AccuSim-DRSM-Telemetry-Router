@@ -1,0 +1,57 @@
+{
+  "name": "accusim-drsm-telemetry-router",
+  "version": "1.1.0",
+  "private": true,
+  "description": "Configurable MSFS SimConnect to DRSM DCS v2 telemetry router",
+  "author": "VFR Multitool",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "test": "node --test tests/*.test.js",
+    "pack:win": "electron-builder --win --x64 --dir",
+    "build:win": "electron-builder --win portable --x64"
+  },
+  "dependencies": {
+    "node-simconnect": "4.0.0"
+  },
+  "devDependencies": {
+    "electron": "43.2.0",
+    "electron-builder": "26.15.3"
+  },
+  "build": {
+    "appId": "de.vfrmultitool.accusim-drsm-router",
+    "productName": "AccuSim DRSM Telemetry Router",
+    "asar": true,
+    "asarUnpack": [
+      "node_modules/regedit/**/*"
+    ],
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "lib/**/*",
+      "ui/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "assets/icon.png",
+        "to": "assets/icon.png"
+      }
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "assets/icon-512.png",
+      "artifactName": "AccuSim-DRSM-Telemetry-Router-${version}.${ext}"
+    }
+  }
+}
