@@ -52,8 +52,10 @@ Telemetry Router ── mapping / unit conversion ──► DCS v2 JSON over UDP
 - Live raw input and converted DCS output values
 - Per-channel enable/disable controls
 - Automatic conversion between compatible physical units
+- Safe Expert mode filters sources, units, and operations by output semantics
 - Scale, offset, axis inversion, integration, and differentiation in Expert mode
 - Full documented numeric DCS v2 output catalog in Expert mode
+- Explicit red Raw mode for deliberately unrestricted experimental mappings
 - User-defined LVars with add/remove controls
 - SimConnect subscribes only to sources selected by enabled output channels
 - Automatically reconnecting SimConnect client
@@ -99,10 +101,19 @@ Basic mode intentionally stays small. It shows linear acceleration, angular
 velocity, pitch/roll/yaw, IAS, AGL, stall warning, and engine/propeller RPM.
 Only appropriate standard and A2A sources are offered for each output.
 
-Expert mode exposes every documented numeric DCS v2 field, every built-in or
-custom source, input units, mathematical operations, scale, and offset. Optional
-fields such as individual gear positions, control surfaces, weapons, and damage
-remain available there without cluttering the normal Comanche workflow.
+Expert mode exposes every documented numeric DCS v2 field, compatible built-in
+and custom sources, input units, mathematical operations, scale, and offset.
+The source list is also filtered semantically: an acceleration output offers
+acceleration sources, while an RPM output offers engine/propeller RPM sources.
+Optional fields such as individual gear positions, control surfaces, weapons,
+and damage remain available there without cluttering the normal Comanche
+workflow.
+
+Input units and operations are constrained to combinations that can actually
+produce the selected output. For example, velocity may be differentiated into
+acceleration, but `mph` cannot be relabelled as G or RPM. Existing or deliberate
+experimental mappings can still be edited in the clearly marked red **Raw**
+mode. Runtime validation remains active, so incompatible channels are not sent.
 
 ## Configuration
 

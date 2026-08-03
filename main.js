@@ -12,7 +12,15 @@ const {
   Tray
 } = require('electron');
 const { BridgeConfigStore } = require('./lib/config-store');
-const { BUILTIN_SOURCES, OPERATIONS, OUTPUTS, UNIT_DEFINITIONS } = require('./lib/catalog');
+const {
+  BUILTIN_SOURCES,
+  OPERATION_COMPATIBILITY,
+  OPERATIONS,
+  OUTPUTS,
+  SAFE_OPERATION_COMPATIBILITY,
+  SAFE_SOURCE_IDS,
+  UNIT_DEFINITIONS
+} = require('./lib/catalog');
 const { allSources } = require('./lib/router-core');
 const { TelemetryRuntime } = require('./lib/telemetry-runtime');
 const { shouldBroadcastToWindow } = require('./lib/window-visibility');
@@ -38,7 +46,10 @@ function publicCatalog() {
     sources: allSources(config),
     outputs: OUTPUTS,
     units: UNIT_DEFINITIONS,
-    operations: OPERATIONS
+    operations: OPERATIONS,
+    operationCompatibility: OPERATION_COMPATIBILITY,
+    safeOperationCompatibility: SAFE_OPERATION_COMPATIBILITY,
+    safeSourceIds: SAFE_SOURCE_IDS
   };
 }
 

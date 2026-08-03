@@ -15,6 +15,7 @@ test('config store creates and atomically persists bridge configuration', () => 
     assert.equal(initial.port, 4135);
     assert.equal(initial.schemaVersion, 2);
     assert.equal(initial.expertMode, false);
+    assert.equal(initial.unsafeMode, false);
     assert.equal(fs.existsSync(path.join(root, 'bridge-config.json')), true);
     initial.host = '192.168.1.20';
     initial.channels.rpm_left.enabled = false;
