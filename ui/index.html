@@ -20,8 +20,28 @@
         <h1>Telemetry Router</h1>
         <p id="versionLine" class="subtle">Konfigurierbare DRSM-Bridge</p>
       </div>
-      <span id="processBadge" class="badge waiting">Bereit</span>
+      <div class="hero-actions">
+        <button id="updateCheckButton" class="update-check-button" type="button">Updates</button>
+        <span id="processBadge" class="badge waiting">Bereit</span>
+      </div>
     </header>
+
+    <section id="updateBanner" class="update-banner" aria-live="polite" hidden>
+      <div class="update-symbol" aria-hidden="true">↓</div>
+      <div class="update-copy">
+        <p class="eyebrow">ROUTER-UPDATE</p>
+        <h2 id="updateTitle">Neue Version verfügbar</h2>
+        <p id="updateMessage" class="subtle">Ein Update steht bereit.</p>
+        <div id="updateProgressWrap" class="update-progress-wrap" hidden>
+          <span id="updateProgress" class="update-progress"></span>
+        </div>
+      </div>
+      <div class="update-actions">
+        <button id="downloadUpdateButton" class="primary-button" type="button">Update installieren</button>
+        <button id="skipUpdateButton" class="secondary-button" type="button">Diese Version überspringen</button>
+        <button id="restartUpdateButton" class="primary-button" type="button" hidden>Neu starten & installieren</button>
+      </div>
+    </section>
 
     <section class="status-grid" aria-label="Status">
       <article class="status-card">

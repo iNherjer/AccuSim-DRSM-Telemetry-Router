@@ -16,13 +16,16 @@ test('config store creates and atomically persists bridge configuration', () => 
     assert.equal(initial.schemaVersion, 2);
     assert.equal(initial.expertMode, false);
     assert.equal(initial.unsafeMode, false);
+    assert.equal(initial.skippedUpdateVersion, '');
     assert.equal(fs.existsSync(path.join(root, 'bridge-config.json')), true);
     initial.host = '192.168.1.20';
     initial.channels.rpm_left.enabled = false;
+    initial.skippedUpdateVersion = '1.3.1';
     store.write(initial);
     const loaded = store.read();
     assert.equal(loaded.host, '192.168.1.20');
     assert.equal(loaded.channels.rpm_left.enabled, false);
+    assert.equal(loaded.skippedUpdateVersion, '1.3.1');
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }

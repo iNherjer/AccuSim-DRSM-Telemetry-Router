@@ -7,7 +7,10 @@ const elements = Object.fromEntries([
   'openFolderButton', 'runtimeDetail', 'filterInput', 'mappingGroups',
   'customSourceForm', 'customLabelInput', 'customVarInput', 'customUnitSelect',
   'customSourceList', 'packetPreview', 'packetSummary', 'expertToggleButton',
-  'rawToggleButton', 'viewHint', 'customSourcesPanel', 'packetPanel'
+  'rawToggleButton', 'viewHint', 'customSourcesPanel', 'packetPanel',
+  'updateCheckButton', 'updateBanner', 'updateTitle', 'updateMessage',
+  'updateProgressWrap', 'updateProgress', 'downloadUpdateButton',
+  'skipUpdateButton', 'restartUpdateButton'
 ].map((id) => [id, document.getElementById(id)]));
 
 let state = null;
@@ -459,6 +462,38 @@ function renderLive(runtime = {}) {
   }
 }
 
+function renderUpdate(update = {}) {
+  const phase = String(update.phase || 'development');
+  const supported = update.supported === true;
+  const busy = ['checking', 'downloading', 'installing'].includes(phase);
+  const visible = ['available', 'downloading', 'ready', 'installing'].includes(phase);
+  const version = update.version ? ` ${update.version}` : '';
+
+  elements.updateCheckButton.disabled = !supported || busy || phase === 'ready';
+  elements.updateCheckButton.textContent = {
+    checking: 'Prüft …',
+    current: 'Aktuell',
+    available: `Update${version}`,
+    downloading: `${Math.round(Number(update.percent) || 0)} %`,
+    ready: 'Update bereit',
+    installing: 'Installiert …',
+    error: 'Erneut prüfen',
+    skipped: 'Updates'
+  }[phase] || (supported ? 'Updates' : 'Portable · manuell');
+
+  elements.updateBanner.hidden = !visible;
+  elements.updateBanner.className = `update-banner ${phase}`;
+  elements.updateTitle.textContent = phase === 'ready'
+    ? `Update${version} ist bereit`
+    : (phase === 'downloading' ? `Update${version} wird geladen` : `Update${version} verfügbar`);
+  elements.updateMessage.textContent = update.message || '';
+  elements.updateProgressWrap.hidden = !['downloading', 'ready', 'installing'].includes(phase);
+  elements.updateProgress.style.width = `${Math.max(0, Math.min(100, Number(update.percent) || 0))}%`;
+  elements.downloadUpdateButton.hidden = phase !== 'available';
+  elements.skipUpdateButton.hidden = phase !== 'available';
+  elements.restartUpdateButton.hidden = phase !== 'ready';
+}
+
 function render(nextState) {
   state = nextState;
   elements.versionLine.textContent = `Desktop v${state.appVersion || '–'} · DCS-Protokoll v2`;
@@ -468,6 +503,7 @@ function render(nextState) {
     renderConfig();
   }
   renderLive(state.runtime || {});
+  renderUpdate(state.update || {});
 }
 
 function bindConfigInput(element, key, parser = (value) => value) {
@@ -484,6 +520,14 @@ bindConfigInput(elements.periodSelect, 'period');
 
 elements.startButton.addEventListener('click', () => window.accusimRouter.start());
 elements.stopButton.addEventListener('click', () => window.accusimRouter.stop());
+elements.updateCheckButton.addEventListener('click', () => window.accusimRouter.checkForUpdates());
+elements.downloadUpdateButton.addEventListener('click', () => window.accusimRouter.downloadUpdate());
+elements.skipUpdateButton.addEventListener('click', () => window.accusimRouter.skipUpdate());
+elements.restartUpdateButton.addEventListener('click', () => {
+  const version = state?.update?.version || 'die neue Version';
+  if (!window.confirm(`Router für Update ${version} beenden und neu starten? Die Bridge wird dabei gestoppt.`)) return;
+  window.accusimRouter.installUpdate();
+});
 elements.openFolderButton.addEventListener('click', () => window.accusimRouter.openDataFolder());
 elements.filterInput.addEventListener('input', applyFilter);
 elements.expertToggleButton.addEventListener('click', () => {
