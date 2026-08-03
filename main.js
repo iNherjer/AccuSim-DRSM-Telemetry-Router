@@ -15,6 +15,7 @@ const { autoUpdater } = require('electron-updater');
 const { BridgeConfigStore } = require('./lib/config-store');
 const {
   BUILTIN_SOURCES,
+  GROUP_LABELS,
   OPERATION_COMPATIBILITY,
   OPERATIONS,
   OUTPUTS,
@@ -22,9 +23,11 @@ const {
   SAFE_SOURCE_IDS,
   TURBULENCE_PRESETS,
   TURBULENCE_SOURCE_IDS,
-  UNIT_DEFINITIONS
+  UNIT_DEFINITIONS,
+  buildDefaultConfig
 } = require('./lib/catalog');
 const { allSources } = require('./lib/router-core');
+const { TRANSLATIONS, translate } = require('./lib/i18n');
 const { TelemetryRuntime } = require('./lib/telemetry-runtime');
 const { UpdateController } = require('./lib/update-controller');
 const { shouldBroadcastToWindow } = require('./lib/window-visibility');
@@ -51,6 +54,7 @@ function publicCatalog() {
     builtinSources: BUILTIN_SOURCES,
     sources: allSources(config),
     outputs: OUTPUTS,
+    groupLabels: GROUP_LABELS,
     units: UNIT_DEFINITIONS,
     operations: OPERATIONS,
     operationCompatibility: OPERATION_COMPATIBILITY,
@@ -67,6 +71,7 @@ function currentState() {
     configRevision,
     config,
     catalog: publicCatalog(),
+    translations: TRANSLATIONS,
     runtime: runtime?.publicState() || null,
     update: updateController?.publicState() || null,
     dataDirectory: store?.dataDirectory || ''
@@ -116,6 +121,11 @@ function createWindow() {
     if (!capturePath) return;
     setTimeout(async () => {
       try {
+        const captureScrollY = Number(process.env.ACCUSIM_ROUTER_CAPTURE_SCROLL_Y || 0);
+        if (Number.isFinite(captureScrollY) && captureScrollY > 0) {
+          await mainWindow.webContents.executeJavaScript(`window.scrollTo(0, ${Math.round(captureScrollY)})`);
+          await new Promise((resolve) => setTimeout(resolve, 120));
+        }
         const image = await mainWindow.webContents.capturePage();
         fs.writeFileSync(capturePath, image.toPNG());
       } finally {
@@ -135,16 +145,17 @@ function createWindow() {
 function updateTrayMenu() {
   if (!tray || tray.isDestroyed()) return;
   const update = updateController?.publicState() || {};
+  const language = config?.language || 'de';
   const checking = update.phase === 'checking';
   const busy = ['checking', 'downloading', 'installing'].includes(update.phase);
   const updateLabel = update.phase === 'ready'
-    ? `Update ${update.version || ''} neu starten & installieren`
-    : (checking ? 'Suche nach Updates …' : 'Nach Updates suchen');
+    ? translate(language, 'tray.install', { version: update.version || '' })
+    : (checking ? translate(language, 'tray.checking') : translate(language, 'tray.check'));
   tray.setContextMenu(Menu.buildFromTemplate([
-    { label: 'Router anzeigen', click: showWindow },
+    { label: translate(language, 'tray.show'), click: showWindow },
     { type: 'separator' },
-    { label: 'Bridge starten', click: () => runtime.start() },
-    { label: 'Bridge stoppen', click: () => runtime.stop() },
+    { label: translate(language, 'tray.start'), click: () => runtime.start() },
+    { label: translate(language, 'tray.stop'), click: () => runtime.stop() },
     { type: 'separator' },
     {
       label: updateLabel,
@@ -157,7 +168,7 @@ function updateTrayMenu() {
     },
     { type: 'separator' },
     {
-      label: 'Beenden',
+      label: translate(language, 'tray.quit'),
       click: () => {
         app.isQuitting = true;
         runtime.stop();
@@ -193,13 +204,19 @@ function registerIpc() {
     });
     configRevision += 1;
     runtime.updateConfig(config);
+    updateTrayMenu();
     broadcastState();
     return { ok: true, config, configRevision };
   });
   ipcMain.handle('config:reset', () => {
-    config = store.reset();
+    config = store.write({
+      ...buildDefaultConfig(),
+      language: config.language,
+      skippedUpdateVersion: config.skippedUpdateVersion
+    });
     configRevision += 1;
     runtime.updateConfig(config);
+    updateTrayMenu();
     broadcastState();
     return { ok: true, config, configRevision };
   });
@@ -221,10 +238,12 @@ async function startApplication() {
     isPackaged: app.isPackaged && !portableBuild,
     platform: process.platform,
     getSkippedVersion: () => config.skippedUpdateVersion,
+    getLanguage: () => config.language,
     saveSkippedVersion: (version) => {
       config = store.write({ ...config, skippedUpdateVersion: version });
       configRevision += 1;
       runtime.updateConfig(config);
+      updateTrayMenu();
     },
     beforeInstall: () => {
       app.isQuitting = true;
@@ -245,9 +264,10 @@ async function startApplication() {
       phase,
       version: '1.5.0',
       percent: phase === 'downloading' ? 46 : (phase === 'ready' ? 100 : 0),
-      message: phase === 'ready'
-        ? 'Update ist geladen und geprüft. Installation beim Neustart oder beim nächsten Beenden.'
-        : (phase === 'downloading' ? 'Update wird geladen … 46 %' : 'Version 1.5.0 ist verfügbar.')
+      messageKey: phase === 'ready'
+        ? 'updater.downloaded'
+        : (phase === 'downloading' ? 'updater.downloading' : 'updater.available'),
+      messageArgs: phase === 'downloading' ? { percent: 46 } : { version: '1.5.0' }
     });
   }
   registerIpc();

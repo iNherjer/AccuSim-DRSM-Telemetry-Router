@@ -16,7 +16,8 @@ const elements = Object.fromEntries([
   'turbulenceSourceSelect', 'turbulenceMixInput', 'turbulenceGainInput',
   'turbulenceLowCutInput', 'turbulenceHighCutInput', 'turbulenceMaxExtraInput',
   'turbulenceSourceLive', 'turbulenceBandLive', 'turbulenceExtraLive',
-  'turbulenceFinalLive', 'turbulenceStatus', 'turbulencePresetState'
+  'turbulenceFinalLive', 'turbulenceStatus', 'turbulencePresetState',
+  'languageSelect'
 ].map((id) => [id, document.getElementById(id)]));
 
 let state = null;
@@ -24,6 +25,60 @@ let draftConfig = null;
 let renderedRevision = 0;
 let saveTimer = null;
 let saveSequence = 0;
+
+function language() {
+  return draftConfig?.language === 'en' ? 'en' : 'de';
+}
+
+function t(key, variables = {}) {
+  const table = state?.translations?.[language()] || state?.translations?.de || {};
+  const fallback = state?.translations?.de?.[key] || key;
+  const template = table[key] ?? fallback;
+  return String(template).replace(/\{([a-zA-Z0-9_]+)\}/g, (_match, name) => (
+    Object.prototype.hasOwnProperty.call(variables, name) ? String(variables[name]) : `{${name}}`
+  ));
+}
+
+function localizedLabel(definition) {
+  if (!definition) return '';
+  return language() === 'en'
+    ? (definition.labelEn || definition.label || '')
+    : (definition.labelDe || definition.label || definition.labelEn || '');
+}
+
+function localizedHelp(output) {
+  return language() === 'en' ? output.helpEn : output.helpDe;
+}
+
+function localizedGroup(group) {
+  return state?.catalog?.groupLabels?.[group]?.[language()] || group || t('mapping.other');
+}
+
+function locale() {
+  return language() === 'en' ? 'en-US' : 'de-DE';
+}
+
+function applyStaticTranslations() {
+  document.documentElement.lang = language();
+  for (const element of document.querySelectorAll('[data-i18n]')) {
+    element.textContent = t(element.dataset.i18n);
+  }
+  for (const element of document.querySelectorAll('[data-i18n-title]')) {
+    element.title = t(element.dataset.i18nTitle);
+  }
+  for (const element of document.querySelectorAll('[data-i18n-placeholder]')) {
+    element.placeholder = t(element.dataset.i18nPlaceholder);
+  }
+  for (const element of document.querySelectorAll('[data-i18n-aria]')) {
+    element.setAttribute('aria-label', t(element.dataset.i18nAria));
+  }
+  for (const element of document.querySelectorAll('[data-i18n-tooltip]')) {
+    const text = t(element.dataset.i18nTooltip);
+    element.dataset.tooltip = text;
+    element.setAttribute('aria-label', text);
+    element.title = text;
+  }
+}
 
 function clone(value) {
   return JSON.parse(JSON.stringify(value));
@@ -56,8 +111,8 @@ function appendSourceOption(parent, source, selectedId, prefix = '') {
   const option = document.createElement('option');
   option.value = source.id;
   option.textContent = source.simVar?.startsWith('L:')
-    ? `${prefix}${source.simVar} — ${source.label}`
-    : `${prefix}${source.label}${source.simVar ? ` · ${source.simVar}` : ''}`;
+    ? `${prefix}${source.simVar} — ${localizedLabel(source)}`
+    : `${prefix}${localizedLabel(source)}${source.simVar ? ` · ${source.simVar}` : ''}`;
   option.selected = source.id === selectedId;
   parent.appendChild(option);
 }
@@ -79,11 +134,11 @@ function groupedSourceOptions(sources, selectedId) {
   const fragment = document.createDocumentFragment();
   const empty = document.createElement('option');
   empty.value = '';
-  empty.textContent = '— keine Quelle —';
+  empty.textContent = t('mapping.none');
   fragment.appendChild(empty);
   for (const [group, sources] of groups) {
     const optgroup = document.createElement('optgroup');
-    optgroup.label = group;
+    optgroup.label = localizedGroup(group);
     for (const source of sources) {
       appendSourceOption(optgroup, source, selectedId);
     }
@@ -106,7 +161,7 @@ function expertSourceOptions(output, selectedId) {
     const selectedSource = state.catalog.sources.find((entry) => entry.id === selectedId);
     if (selectedSource) {
       const group = document.createElement('optgroup');
-      group.label = 'Aktuelle Raw-Zuordnung';
+      group.label = t('mapping.currentRaw');
       appendSourceOption(group, selectedSource, selectedId);
       fragment.appendChild(group);
     }
@@ -120,7 +175,7 @@ function simpleSourceOptions(output, selectedId) {
   for (const rule of output.simpleSources || []) {
     const source = state.catalog.sources.find((entry) => entry.id === rule.sourceId);
     if (!source) continue;
-    const prefix = source.id.startsWith('a2a.') ? 'A2A AccuSim · ' : 'Standard MSFS · ';
+    const prefix = source.id.startsWith('a2a.') ? t('mapping.a2aPrefix') : t('mapping.standardPrefix');
     appendSourceOption(fragment, source, selectedId, prefix);
   }
 
@@ -128,7 +183,7 @@ function simpleSourceOptions(output, selectedId) {
     const selectedSource = state.catalog.sources.find((entry) => entry.id === selectedId);
     if (selectedSource) {
       const group = document.createElement('optgroup');
-      group.label = 'Aktuelle Expertenzuordnung';
+      group.label = t('mapping.currentExpert');
       appendSourceOption(group, selectedSource, selectedId);
       fragment.appendChild(group);
     }
@@ -148,14 +203,14 @@ function unitOptions(selectedId, allowedFamily = '') {
     if (allowedFamily && definition.family !== allowedFamily) continue;
     const option = document.createElement('option');
     option.value = id;
-    option.textContent = definition.label;
+    option.textContent = localizedLabel(definition);
     option.selected = id === selectedId;
     fragment.appendChild(option);
   }
   if (selectedId && allowedFamily && state.catalog.units[selectedId]?.family !== allowedFamily) {
     const option = document.createElement('option');
     option.value = selectedId;
-    option.textContent = `${state.catalog.units[selectedId]?.label || selectedId} · Raw`;
+    option.textContent = `${localizedLabel(state.catalog.units[selectedId]) || selectedId} · Raw`;
     option.selected = true;
     fragment.appendChild(option);
   }
@@ -168,7 +223,7 @@ function operationOptions(selectedId, allowedIds = null) {
     if (allowedIds && !allowedIds.includes(operation.id)) continue;
     const option = document.createElement('option');
     option.value = operation.id;
-    option.textContent = operation.label;
+    option.textContent = localizedLabel(operation);
     option.selected = operation.id === selectedId;
     fragment.appendChild(option);
   }
@@ -176,7 +231,7 @@ function operationOptions(selectedId, allowedIds = null) {
     const operation = state.catalog.operations.find((entry) => entry.id === selectedId);
     const option = document.createElement('option');
     option.value = selectedId;
-    option.textContent = `${operation?.label || selectedId} · nicht kompatibel`;
+    option.textContent = `${localizedLabel(operation) || selectedId} · ${t('mapping.incompatible')}`;
     option.selected = true;
     fragment.appendChild(option);
   }
@@ -204,13 +259,14 @@ function makeMappingRow(output) {
   const row = document.createElement('div');
   row.className = `mapping-row${channel.enabled ? '' : ' disabled'}`;
   row.dataset.outputId = output.id;
-  row.dataset.search = `${output.group} ${output.label} ${output.id}`.toLowerCase();
+  row.dataset.search = `${output.group} ${localizedGroup(output.group)} ${output.labelDe} ${output.labelEn} ${output.id}`.toLowerCase();
 
   const enable = document.createElement('input');
   enable.type = 'checkbox';
   enable.checked = channel.enabled;
   enable.className = 'channel-toggle';
-  enable.title = 'Kanal ein-/ausschalten';
+  enable.title = t('mapping.enableTooltip');
+  enable.setAttribute('aria-label', `${output.id}: ${t('mapping.enableTooltip')}`);
   enable.addEventListener('change', () => {
     row.classList.toggle('disabled', !enable.checked);
     updateChannel(output.id, { enabled: enable.checked });
@@ -219,7 +275,7 @@ function makeMappingRow(output) {
   const sourceSelect = document.createElement('select');
   sourceSelect.className = 'source-select';
   sourceSelect.appendChild(sourceOptions(output, channel.sourceId));
-  sourceSelect.title = sourceSelect.selectedOptions[0]?.textContent || '';
+  sourceSelect.title = `${t('mapping.sourceTooltip')}\n${sourceSelect.selectedOptions[0]?.textContent || ''}`;
   sourceSelect.addEventListener('change', () => {
     const selectedSource = state.catalog.sources.find((entry) => entry.id === sourceSelect.value);
     const simpleRule = output.simpleSources?.find((entry) => entry.sourceId === sourceSelect.value);
@@ -234,7 +290,7 @@ function makeMappingRow(output) {
     unitSelect.value = nextInputUnit;
     operationSelect.replaceChildren(mappingOperationOptions(output, nextInputUnit, nextOperation));
     operationSelect.value = nextOperation;
-    sourceSelect.title = sourceSelect.selectedOptions[0]?.textContent || '';
+    sourceSelect.title = `${t('mapping.sourceTooltip')}\n${sourceSelect.selectedOptions[0]?.textContent || ''}`;
     updateChannel(output.id, {
       sourceId: sourceSelect.value,
       inputUnit: nextInputUnit,
@@ -247,16 +303,19 @@ function makeMappingRow(output) {
   invert.type = 'checkbox';
   invert.checked = channel.invert === true;
   invert.className = 'invert-toggle';
-  invert.title = 'Vorzeichen dieses Ausgangskanals manuell invertieren';
+  invert.title = t('mapping.invertTooltip');
+  invert.setAttribute('aria-label', `${output.id}: ${t('mapping.invertTooltip')}`);
   invert.addEventListener('change', () => updateChannel(output.id, { invert: invert.checked }));
 
   const unitSelect = document.createElement('select');
   unitSelect.className = 'unit-select expert-only';
   unitSelect.appendChild(mappingUnitOptions(output, selectedSource, channel.inputUnit));
+  unitSelect.title = t('mapping.unitTooltip');
 
   const operationSelect = document.createElement('select');
   operationSelect.className = 'operation-select expert-only';
   operationSelect.appendChild(mappingOperationOptions(output, channel.inputUnit, channel.operation));
+  operationSelect.title = t('mapping.operationTooltip');
   operationSelect.addEventListener('change', () => updateChannel(output.id, { operation: operationSelect.value }));
   unitSelect.addEventListener('change', () => {
     const compatibleOperations = safeOperationIds(unitSelect.value, output.targetUnit);
@@ -274,7 +333,7 @@ function makeMappingRow(output) {
   scale.step = 'any';
   scale.value = channel.scale;
   scale.className = 'number-input expert-only';
-  scale.title = 'Multiplikationsfaktor; für Vorzeichen die Inv.-Checkbox verwenden';
+  scale.title = t('mapping.scaleTooltip');
   scale.addEventListener('change', () => updateChannel(output.id, { scale: Number(scale.value) }));
 
   const offset = document.createElement('input');
@@ -282,21 +341,39 @@ function makeMappingRow(output) {
   offset.step = 'any';
   offset.value = channel.offset;
   offset.className = 'number-input expert-only';
+  offset.title = t('mapping.offsetTooltip');
   offset.addEventListener('change', () => updateChannel(output.id, { offset: Number(offset.value) }));
 
   const inputLive = document.createElement('output');
   inputLive.className = 'live-value input-live';
   inputLive.dataset.sourceValueFor = output.id;
   inputLive.textContent = '—';
+  inputLive.title = t('mapping.inputLiveTooltip');
 
   const outputLabel = document.createElement('div');
   outputLabel.className = 'output-label';
-  outputLabel.innerHTML = `<strong>${output.id}</strong><small>${output.label} · ${state.catalog.units[output.targetUnit]?.label || output.targetUnit}</small>`;
+  const outputCodeRow = document.createElement('div');
+  outputCodeRow.className = 'output-code-row';
+  const outputCode = document.createElement('strong');
+  outputCode.textContent = output.id;
+  const help = document.createElement('span');
+  help.className = 'help-tip output-help-tip';
+  help.tabIndex = 0;
+  help.setAttribute('role', 'note');
+  help.textContent = '?';
+  help.dataset.tooltip = localizedHelp(output);
+  help.setAttribute('aria-label', localizedHelp(output));
+  help.title = localizedHelp(output);
+  outputCodeRow.append(outputCode, help);
+  const outputDescription = document.createElement('small');
+  outputDescription.textContent = `${localizedLabel(output)} · ${localizedLabel(state.catalog.units[output.targetUnit]) || output.targetUnit}`;
+  outputLabel.append(outputCodeRow, outputDescription);
 
   const outputLive = document.createElement('output');
   outputLive.className = 'live-value output-live';
   outputLive.dataset.outputValueFor = output.id;
   outputLive.textContent = '—';
+  outputLive.title = t('mapping.outputLiveTooltip');
 
   row.append(enable, sourceSelect, invert, unitSelect, operationSelect, scale, offset, inputLive, outputLabel, outputLive);
   return row;
@@ -327,11 +404,18 @@ function activeTurbulencePreset() {
 function renderTurbulencePresetState() {
   const active = activeTurbulencePreset();
   for (const button of document.querySelectorAll('[data-turbulence-preset]')) {
+    const preset = (state.catalog.turbulencePresets || []).find(
+      (entry) => entry.id === button.dataset.turbulencePreset
+    );
+    const label = localizedLabel(preset);
+    const description = language() === 'en' ? preset?.descriptionEn : preset?.description;
+    button.textContent = label;
+    button.title = `${label}: ${description || ''}`;
     button.setAttribute('aria-pressed', String(button.dataset.turbulencePreset === active?.id));
   }
   elements.turbulencePresetState.textContent = active
-    ? `${active.label}: ${active.description}`
-    : 'Benutzerdefiniert';
+    ? `${localizedLabel(active)}: ${language() === 'en' ? active.descriptionEn : active.description}`
+    : t('turbulence.custom');
 }
 
 function renderDynamicsConfig() {
@@ -342,7 +426,7 @@ function renderDynamicsConfig() {
     turbulenceSourceOptions(draftConfig.turbulence?.sourceId || 'a2a.acc.y')
   );
   elements.turbulenceSourceSelect.value = draftConfig.turbulence?.sourceId || 'a2a.acc.y';
-  elements.turbulenceSourceSelect.title = elements.turbulenceSourceSelect.selectedOptions[0]?.textContent || '';
+  elements.turbulenceSourceSelect.title = `${t('tooltip.turbulenceSource')}\n${elements.turbulenceSourceSelect.selectedOptions[0]?.textContent || ''}`;
   elements.turbulenceMixInput.value = Math.round(Number(draftConfig.turbulence?.mix ?? 0.5) * 100);
   elements.turbulenceGainInput.value = draftConfig.turbulence?.gain ?? 2.5;
   elements.turbulenceLowCutInput.value = draftConfig.turbulence?.lowCutHz ?? 0.7;
@@ -363,7 +447,11 @@ function renderMappings() {
     section.open = !draftConfig.expertMode || ['Motion', 'Aerodynamics', 'Engine', 'Gear & Surfaces'].includes(group);
     const summary = document.createElement('summary');
     const enabledCount = outputs.filter((output) => draftConfig.channels[output.id]?.enabled).length;
-    summary.innerHTML = `<span>${group}</span><small>${enabledCount} von ${outputs.length} aktiv</small>`;
+    const groupLabel = document.createElement('span');
+    groupLabel.textContent = localizedGroup(group);
+    const countLabel = document.createElement('small');
+    countLabel.textContent = t('mapping.count', { enabled: enabledCount, total: outputs.length });
+    summary.append(groupLabel, countLabel);
     section.appendChild(summary);
     const body = document.createElement('div');
     body.className = 'mapping-group-body';
@@ -380,17 +468,17 @@ function applyViewMode() {
   document.body.classList.toggle('expert-mode', expertMode);
   document.body.classList.toggle('raw-mode', unsafeMode);
   elements.expertToggleButton.setAttribute('aria-pressed', String(expertMode));
-  elements.expertToggleButton.querySelector('small').textContent = expertMode ? 'an' : 'aus';
+  elements.expertToggleButton.querySelector('small').textContent = expertMode ? t('mapping.on') : t('mapping.off');
   elements.rawToggleButton.setAttribute('aria-pressed', String(unsafeMode));
-  elements.rawToggleButton.querySelector('small').textContent = unsafeMode ? 'an' : 'aus';
+  elements.rawToggleButton.querySelector('small').textContent = unsafeMode ? t('mapping.on') : t('mapping.off');
   elements.viewHint.textContent = unsafeMode
-    ? 'Raw/Unsafe: freie Zuordnung aller Quellen und Einheiten; inkompatible Kanäle werden nicht gesendet.'
+    ? t('mapping.rawHint')
     : (expertMode
-        ? 'Expertenansicht: alle DCS-v2-Ausgänge, aber nur passende Quellen, Einheiten und Rechenarten.'
-        : 'Basisansicht: Motion-Cues, IAS/AGL, Stall und RPM – jeweils nur mit passender Standard- oder A2A-Quelle.');
+        ? t('mapping.expertHint')
+        : t('mapping.basicHint'));
   elements.filterInput.placeholder = expertMode
-    ? 'z. B. RPM, gear, shake'
-    : 'z. B. RPM, vertical';
+    ? t('mapping.filterExpert')
+    : t('mapping.filterBasic');
 }
 
 function renderCustomSources() {
@@ -400,7 +488,7 @@ function renderCustomSources() {
   if (!customSources.length) {
     const empty = document.createElement('p');
     empty.className = 'empty-state';
-    empty.textContent = 'Noch keine eigenen LVars hinterlegt.';
+    empty.textContent = t('custom.empty');
     elements.customSourceList.appendChild(empty);
     return;
   }
@@ -413,12 +501,12 @@ function renderCustomSources() {
     const variable = document.createElement('code');
     variable.textContent = source.simVar;
     const unit = document.createElement('small');
-    unit.textContent = state.catalog.units[source.inputUnit]?.label || source.inputUnit;
+    unit.textContent = localizedLabel(state.catalog.units[source.inputUnit]) || source.inputUnit;
     description.append(name, variable, unit);
     const remove = document.createElement('button');
     remove.type = 'button';
     remove.className = 'remove-button';
-    remove.textContent = '− Entfernen';
+    remove.textContent = t('custom.remove');
     remove.addEventListener('click', () => {
       draftConfig.customSources = draftConfig.customSources.filter((entry) => entry.id !== source.id);
       for (const channel of Object.values(draftConfig.channels)) {
@@ -432,6 +520,8 @@ function renderCustomSources() {
 }
 
 function renderConfig() {
+  elements.languageSelect.value = language();
+  applyStaticTranslations();
   elements.nameInput.value = draftConfig.name;
   elements.hostInput.value = draftConfig.host;
   elements.portInput.value = draftConfig.port;
@@ -455,7 +545,7 @@ function applyFilter() {
 }
 
 function queueSave(forceRender = false) {
-  elements.saveStatus.textContent = 'Speichert …';
+  elements.saveStatus.textContent = t('connection.saving');
   elements.saveStatus.className = 'save-status saving';
   if (saveTimer) clearTimeout(saveTimer);
   saveTimer = setTimeout(async () => {
@@ -469,36 +559,41 @@ function queueSave(forceRender = false) {
     }
     if (sequence !== saveSequence) return;
     if (!result?.ok) {
-      elements.saveStatus.textContent = result?.message || 'Speicherfehler';
+      elements.saveStatus.textContent = result?.message || t('connection.saveError');
       elements.saveStatus.className = 'save-status error';
       return;
     }
     draftConfig = clone(result.config);
     renderedRevision = result.configRevision;
-    elements.saveStatus.textContent = 'Gespeichert';
+    elements.saveStatus.textContent = t('connection.saved');
     elements.saveStatus.className = 'save-status';
     if (forceRender) renderConfig();
   }, 300);
 }
 
 function renderLive(runtime = {}) {
+  const runtimeDetail = runtime.detailKey ? t(runtime.detailKey, runtime.detailArgs || {}) : runtime.detail;
+  const runtimeError = runtime.lastErrorKey ? t(runtime.lastErrorKey, runtime.lastErrorArgs || {}) : runtime.lastError;
   const running = runtime.process === 'running';
   setStateClass(elements.processBadge, 'badge', running ? 'running' : 'waiting');
-  elements.processBadge.textContent = running ? 'Aktiv' : 'Bereit';
+  elements.processBadge.textContent = running ? t('status.active') : t('status.ready');
   setStateClass(elements.simDot, 'status-dot', runtime.simulator || 'waiting');
   elements.simStatus.textContent = {
-    connected: 'Verbunden', connecting: 'Verbindet …', waiting: 'Nicht verbunden', error: 'Fehler'
-  }[runtime.simulator] || 'Nicht verbunden';
+    connected: t('status.connected'),
+    connecting: t('status.connecting'),
+    waiting: t('status.disconnected'),
+    error: t('status.error')
+  }[runtime.simulator] || t('status.disconnected');
   setStateClass(elements.udpDot, 'status-dot', runtime.udp === 'active' ? 'connected' : runtime.udp || 'waiting');
   elements.udpStatus.textContent = runtime.udp === 'active'
     ? `${draftConfig.host}:${draftConfig.port}`
-    : (runtime.udp === 'error' ? 'Fehler' : 'Gestoppt');
-  elements.sampleRate.textContent = `${Number(runtime.sampleHz || 0).toLocaleString('de-DE', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} Hz`;
-  elements.packetCount.textContent = Number(runtime.packets || 0).toLocaleString('de-DE');
-  elements.runtimeDetail.textContent = runtime.lastError
-    ? `${runtime.detail || ''} · ${runtime.lastError}`
-    : (runtime.detail || 'Bridge ist nicht gestartet.');
-  elements.runtimeDetail.classList.toggle('error', Boolean(runtime.lastError));
+    : (runtime.udp === 'error' ? t('status.error') : t('status.stopped'));
+  elements.sampleRate.textContent = `${Number(runtime.sampleHz || 0).toLocaleString(locale(), { minimumFractionDigits: 1, maximumFractionDigits: 1 })} Hz`;
+  elements.packetCount.textContent = Number(runtime.packets || 0).toLocaleString(locale());
+  elements.runtimeDetail.textContent = runtimeError
+    ? `${runtimeDetail || ''} · ${runtimeError}`
+    : (runtimeDetail || t('runtime.bridgeNotStarted'));
+  elements.runtimeDetail.classList.toggle('error', Boolean(runtimeError));
   elements.startButton.disabled = running;
   elements.stopButton.disabled = !running;
   const recording = runtime.recording || {};
@@ -507,10 +602,10 @@ function renderLive(runtime = {}) {
   elements.recordButton.classList.toggle('recording', recording.active === true);
   elements.recordingDetail.classList.toggle('error', Boolean(recording.error));
   elements.recordingDetail.textContent = recording.error
-    ? `CSV-Fehler: ${recording.error}`
+    ? t('recording.error', { error: recording.error })
     : (recording.active
-        ? `CSV läuft · ${Number(recording.rows || 0).toLocaleString('de-DE')} Zeilen · ${recording.path || ''}`
-        : (recording.path ? `CSV gespeichert · ${recording.path}` : 'CSV-Aufzeichnung ist aus.'));
+        ? t('recording.active', { rows: Number(recording.rows || 0).toLocaleString(locale()), path: recording.path || '' })
+        : (recording.path ? t('recording.saved', { path: recording.path }) : t('recording.off')));
 
   const diagnostics = runtime.diagnostics || {};
   const gravityVector = diagnostics.gravity?.vectorG || (draftConfig.gravity?.enabled
@@ -527,8 +622,12 @@ function renderLive(runtime = {}) {
   const turbulenceError = runtime.channelErrors?.turbulence || '';
   elements.turbulenceStatus.classList.toggle('error', Boolean(turbulenceError));
   elements.turbulenceStatus.textContent = turbulenceError || (draftConfig.turbulence?.enabled
-    ? `${turbulence.limited ? 'Soft-Limit aktiv · ' : ''}Nur das Band ${numberText(draftConfig.turbulence.lowCutHz, 2)}–${numberText(draftConfig.turbulence.highCutHz, 2)} Hz wird zusätzlich in Heave gemischt.`
-    : 'Aus: Die A2A-Beschleunigung wird ohne zusätzliche Turbulenzverstärkung weitergegeben.');
+    ? t('turbulence.on', {
+        limit: turbulence.limited ? t('turbulence.limited') : '',
+        low: numberText(draftConfig.turbulence.lowCutHz, 2),
+        high: numberText(draftConfig.turbulence.highCutHz, 2)
+      })
+    : t('turbulence.off'));
 
   for (const output of state.catalog.outputs) {
     const channel = draftConfig.channels[output.id];
@@ -536,7 +635,7 @@ function renderLive(runtime = {}) {
     if (sourceValueElement) sourceValueElement.textContent = numberText(runtime.sourceValues?.[channel?.sourceId]);
     const outputValueElement = document.querySelector(`[data-output-value-for="${CSS.escape(output.id)}"]`);
     if (outputValueElement) {
-      outputValueElement.textContent = channel?.enabled ? numberText(runtime.outputValues?.[output.id]) : 'aus';
+      outputValueElement.textContent = channel?.enabled ? numberText(runtime.outputValues?.[output.id]) : t('mapping.disabledValue');
       const error = runtime.channelErrors?.[output.id] || '';
       outputValueElement.classList.toggle('error', Boolean(error));
       outputValueElement.title = error;
@@ -546,10 +645,13 @@ function renderLive(runtime = {}) {
 
   if (runtime.packetPreview) {
     elements.packetPreview.textContent = JSON.stringify(runtime.packetPreview, null, 2);
-    elements.packetSummary.textContent = `${Object.keys(runtime.packetPreview).length} Felder · ${runtime.packets || 0} Pakete`;
+    elements.packetSummary.textContent = t('packet.summary', {
+      fields: Object.keys(runtime.packetPreview).length,
+      packets: runtime.packets || 0
+    });
   } else {
-    elements.packetPreview.textContent = 'Bridge starten, um die JSON-Ausgabe zu sehen.';
-    elements.packetSummary.textContent = 'Noch keine Telemetrie';
+    elements.packetPreview.textContent = t('packet.waiting');
+    elements.packetSummary.textContent = t('packet.none');
   }
 }
 
@@ -558,26 +660,30 @@ function renderUpdate(update = {}) {
   const supported = update.supported === true;
   const busy = ['checking', 'downloading', 'installing'].includes(phase);
   const visible = ['available', 'downloading', 'ready', 'installing'].includes(phase);
-  const version = update.version ? ` ${update.version}` : '';
+  const version = update.version || '';
 
   elements.updateCheckButton.disabled = !supported || busy || phase === 'ready';
   elements.updateCheckButton.textContent = {
-    checking: 'Prüft …',
-    current: 'Aktuell',
-    available: `Update${version}`,
-    downloading: `${Math.round(Number(update.percent) || 0)} %`,
-    ready: 'Update bereit',
-    installing: 'Installiert …',
-    error: 'Erneut prüfen',
-    skipped: 'Updates'
-  }[phase] || (supported ? 'Updates' : 'Portable · manuell');
+    checking: t('update.checking'),
+    current: t('update.currentShort'),
+    available: t('update.availableShort', { version }),
+    downloading: t('update.downloadingShort', { percent: Math.round(Number(update.percent) || 0) }),
+    ready: t('update.readyShort'),
+    installing: t('update.installingShort'),
+    error: t('update.retry'),
+    skipped: t('update.check')
+  }[phase] || (supported ? t('update.check') : t('update.portable'));
 
   elements.updateBanner.hidden = !visible;
   elements.updateBanner.className = `update-banner ${phase}`;
   elements.updateTitle.textContent = phase === 'ready'
-    ? `Update${version} ist bereit`
-    : (phase === 'downloading' ? `Update${version} wird geladen` : `Update${version} verfügbar`);
-  elements.updateMessage.textContent = update.message || '';
+    ? t('update.readyTitle', { version })
+    : (phase === 'downloading'
+        ? t('update.downloadingTitle', { version })
+        : t('update.availableVersionTitle', { version }));
+  elements.updateMessage.textContent = update.messageKey
+    ? t(update.messageKey, update.messageArgs || {})
+    : (update.message || '');
   elements.updateProgressWrap.hidden = !['downloading', 'ready', 'installing'].includes(phase);
   elements.updateProgress.style.width = `${Math.max(0, Math.min(100, Number(update.percent) || 0))}%`;
   elements.downloadUpdateButton.hidden = phase !== 'available';
@@ -587,12 +693,12 @@ function renderUpdate(update = {}) {
 
 function render(nextState) {
   state = nextState;
-  elements.versionLine.textContent = `Desktop v${state.appVersion || '–'} · DCS-Protokoll v2`;
   if (!draftConfig || state.configRevision !== renderedRevision) {
     draftConfig = clone(state.config);
     renderedRevision = state.configRevision;
     renderConfig();
   }
+  elements.versionLine.textContent = t('app.versionLine', { version: state.appVersion || '–' });
   renderLive(state.runtime || {});
   renderUpdate(state.update || {});
 }
@@ -608,6 +714,15 @@ bindConfigInput(elements.nameInput, 'name', (value) => value.trim());
 bindConfigInput(elements.hostInput, 'host', (value) => value.trim());
 bindConfigInput(elements.portInput, 'port', Number);
 bindConfigInput(elements.periodSelect, 'period');
+
+elements.languageSelect.addEventListener('change', () => {
+  if (!draftConfig) return;
+  draftConfig.language = elements.languageSelect.value === 'en' ? 'en' : 'de';
+  renderConfig();
+  renderLive(state.runtime || {});
+  renderUpdate(state.update || {});
+  queueSave();
+});
 
 function bindNestedCheckbox(element, section, key) {
   element.addEventListener('change', () => {
@@ -630,7 +745,7 @@ bindNestedNumber(elements.gravityStrengthInput, 'gravity', 'strengthG');
 bindNestedCheckbox(elements.turbulenceEnabledInput, 'turbulence', 'enabled');
 elements.turbulenceSourceSelect.addEventListener('change', () => {
   draftConfig.turbulence.sourceId = elements.turbulenceSourceSelect.value;
-  elements.turbulenceSourceSelect.title = elements.turbulenceSourceSelect.selectedOptions[0]?.textContent || '';
+  elements.turbulenceSourceSelect.title = `${t('tooltip.turbulenceSource')}\n${elements.turbulenceSourceSelect.selectedOptions[0]?.textContent || ''}`;
   queueSave();
 });
 bindNestedNumber(elements.turbulenceMixInput, 'turbulence', 'mix', (value) => Number(value) / 100);
@@ -666,8 +781,8 @@ elements.updateCheckButton.addEventListener('click', () => window.accusimRouter.
 elements.downloadUpdateButton.addEventListener('click', () => window.accusimRouter.downloadUpdate());
 elements.skipUpdateButton.addEventListener('click', () => window.accusimRouter.skipUpdate());
 elements.restartUpdateButton.addEventListener('click', () => {
-  const version = state?.update?.version || 'die neue Version';
-  if (!window.confirm(`Router für Update ${version} beenden und neu starten? Die Bridge wird dabei gestoppt.`)) return;
+  const version = state?.update?.version || t('confirm.newVersion');
+  if (!window.confirm(t('confirm.install', { version }))) return;
   window.accusimRouter.installUpdate();
 });
 elements.openFolderButton.addEventListener('click', () => window.accusimRouter.openDataFolder());
@@ -688,14 +803,14 @@ elements.rawToggleButton.addEventListener('click', () => {
 });
 
 elements.disableAllButton.addEventListener('click', () => {
-  if (!window.confirm('Wirklich alle optionalen DCS-Ausgabekanäle deaktivieren?')) return;
+  if (!window.confirm(t('confirm.disableAll'))) return;
   Object.values(draftConfig.channels).forEach((channel) => { channel.enabled = false; });
   renderMappings();
   queueSave();
 });
 
 elements.resetButton.addEventListener('click', async () => {
-  if (!window.confirm('Alle Zuordnungen, Umrechnungen und eigenen LVars auf den Auslieferungszustand zurücksetzen?')) return;
+  if (!window.confirm(t('confirm.reset'))) return;
   const result = await window.accusimRouter.resetConfig();
   if (result?.ok) {
     draftConfig = clone(result.config);

@@ -5,12 +5,14 @@ const fs = require('node:fs');
 const path = require('node:path');
 const test = require('node:test');
 
-test('web installer closes installed and portable router processes before migration', () => {
+test('web installer is the only build target and closes legacy portable processes', () => {
   const root = path.resolve(__dirname, '..');
   const packageJson = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
   const includePath = packageJson.build?.nsisWeb?.include;
   assert.equal(packageJson.version, '1.5.0');
   assert.equal(includePath, 'build/installer.nsh');
+  assert.deepEqual(packageJson.build?.win?.target, [{ target: 'nsis-web', arch: ['x64'] }]);
+  assert.equal(packageJson.build?.portable, undefined);
 
   const installer = fs.readFileSync(path.join(root, includePath), 'utf8');
   assert.match(installer, /customCheckAppRunning/);

@@ -62,12 +62,14 @@ Telemetry Router ── mapping / unit conversion ──► DCS v2 JSON over UDP
 - Renderer updates freeze while the window is hidden or minimized; telemetry continues
 - Installed app checks for updates at startup and offers install or per-version skip
 - Download progress and an explicit restart action that stops the bridge safely
-- Small web bootstrapper plus an optional manual-update portable executable
+- Small web bootstrapper with automatic update support
 - Configurable UDP host, port, packet name, and sampling period
 - Atomic persistent JSON configuration
 - DCS-compatible attitude-dependent 1 G gravity reference
 - Optional turbulence mixer with four presets, band-pass, blend, gain, and soft G limit
-- Contextual tooltips explain every turbulence input and its effect
+- Persistent German/English interface, including tray, updater, status and validation messages
+- Contextual tooltips explain every turbulence input, mapping control and DCS output field
+- Bilingual output help describes axes, units and the intended DRSM use of fields such as `acc.1`
 - Fixed three-element DCS vectors to prevent malformed Primary cue packets
 - CSV recording of raw sources, routed outputs, gravity, and turbulence diagnostics
 
@@ -178,7 +180,7 @@ Shared inputs such as `L:Eng1_RPM` are subscribed only once. Changing scale or
 offset does not reconnect SimConnect; changing an enabled channel's source or
 sampling period rebuilds the compact subscription automatically.
 
-## Updates and portable mode
+## Updates and installation
 
 The installed Windows app checks the latest public GitHub release at startup.
 When a newer version is available, it offers **Install update** or **Skip this
@@ -187,10 +189,6 @@ manual check from the app header or tray can offer it again. Telemetry continues
 while the update downloads. The bridge is stopped only after the user confirms
 the restart, and a downloaded update is also installed on the next real app
 exit.
-
-`AccuSim-DRSM-Telemetry-Router.exe` remains available as a portable fallback.
-Portable mode deliberately does not self-update. It identifies itself in the UI
-and requires downloading a newer portable executable manually.
 
 Every release used by the updater must publish these files from the same build:
 
@@ -219,13 +217,14 @@ npm test
 npm start
 ```
 
-Build the portable x64 Windows executable:
+Build the x64 Windows bootstrapper and updater payload:
 
 ```bash
 npm run build:win
 ```
 
-The build is written to `dist/AccuSim-DRSM-Telemetry-Router-<version>.exe`.
+The bootstrapper, payload, and `latest.yml` metadata are written below
+`dist/nsis-web/`.
 
 ## Current status and limitations
 
