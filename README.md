@@ -159,6 +159,11 @@ Every release used by the updater must publish these files from the same build:
 
 Draft releases are not part of the update channel.
 
+When migrating from an older portable build, the bootstrapper also detects
+router processes outside the installation directory. It warns before stopping
+the active bridge, closes both installed and portable process names, and avoids
+the old tray instance reclaiming Electron's single-instance lock after setup.
+
 ## Development
 
 Requirements:
