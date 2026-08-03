@@ -124,15 +124,41 @@
               <strong>Turbulenzmischer</strong>
               <small>Mischt nur schnelle Stöße zusätzlich in Heave</small>
             </div>
-            <label class="switch-label"><input id="turbulenceEnabledInput" type="checkbox"><span>Aktiv</span></label>
+            <label class="switch-label" title="Schaltet nur die zusätzliche Turbulenzverstärkung ein oder aus. Das ursprüngliche Beschleunigungssignal bleibt erhalten."><input id="turbulenceEnabledInput" type="checkbox"><span>Aktiv</span></label>
+          </div>
+          <div class="turbulence-presets" aria-label="Turbulenz-Presets">
+            <span class="preset-caption">Presets</span>
+            <button type="button" data-turbulence-preset="light" title="Leicht: dezente Luftunruhe, begrenzt auf maximal 0,08 g zusätzliche Heave-Bewegung.">Leicht</button>
+            <button type="button" data-turbulence-preset="medium" title="Mittel: ausgewogener Ausgangspunkt und bisherige Standardeinstellung.">Mittel</button>
+            <button type="button" data-turbulence-preset="strong" title="Stark: deutlichere und etwas länger anhaltende Turbulenzstöße.">Stark</button>
+            <button class="extreme" type="button" data-turbulence-preset="extreme" title="Extrem: sehr breite, starke Verstärkung nur für kurze Tests; kann DRSM- oder Plattformlimits erreichen.">Extrem</button>
+            <span id="turbulencePresetState" class="preset-state">Benutzerdefiniert</span>
           </div>
           <div class="turbulence-settings">
-            <label class="wide-setting"><span>Signalquelle</span><select id="turbulenceSourceSelect"></select></label>
-            <label><span>Mischung (%)</span><input id="turbulenceMixInput" type="number" min="0" max="100" step="5"></label>
-            <label><span>Band-Verstärkung</span><input id="turbulenceGainInput" type="number" min="0" max="8" step="0.1"></label>
-            <label><span>Untergrenze (Hz)</span><input id="turbulenceLowCutInput" type="number" min="0.05" max="10" step="0.05"></label>
-            <label><span>Obergrenze (Hz)</span><input id="turbulenceHighCutInput" type="number" min="0.1" max="20" step="0.1"></label>
-            <label><span>Soft-Limit extra (g)</span><input id="turbulenceMaxExtraInput" type="number" min="0.01" max="2" step="0.01"></label>
+            <label class="wide-setting">
+              <span class="setting-label">Signalquelle <span class="help-tip" tabindex="0" role="note" aria-label="Vertikales Eingangssignal, aus dem schnelle Turbulenzanteile erkannt werden. Für die A2A Comanche ist FM BodyAccelerationY empfohlen. Geschwindigkeitsquellen werden intern differenziert und reagieren empfindlicher auf Rauschen." data-tooltip="Vertikales Eingangssignal für die Turbulenzerkennung. Für die A2A Comanche ist FM BodyAccelerationY empfohlen. Geschwindigkeitsquellen werden differenziert und können stärker rauschen.">?</span></span>
+              <select id="turbulenceSourceSelect" title="Quelle für die Erkennung schneller vertikaler Turbulenzbewegungen"></select>
+            </label>
+            <label>
+              <span class="setting-label">Mischung (%) <span class="help-tip" tabindex="0" role="note" aria-label="Bestimmt, wie viel des verstärkten Turbulenzbandes zusätzlich in Heave gemischt wird. Null Prozent hat keinen Effekt, hundert Prozent übernimmt die volle eingestellte Verstärkung." data-tooltip="Anteil der Zusatzverstärkung: 0 % = kein Zusatz, 100 % = volle Band-Verstärkung. Das ursprüngliche Signal bleibt immer erhalten.">?</span></span>
+              <input id="turbulenceMixInput" type="number" min="0" max="100" step="5" title="0 % = kein Zusatz; 100 % = volle Turbulenzverstärkung">
+            </label>
+            <label>
+              <span class="setting-label">Band-Verstärkung <span class="help-tip" tabindex="0" role="note" aria-label="Verändert nur Frequenzen zwischen Unter- und Obergrenze. Null unterdrückt dieses Band bei voller Mischung, eins lässt es unverändert und höhere Werte verstärken die Turbulenzstöße." data-tooltip="Stärke im Frequenzband: 0 = Band unterdrücken, 1,0 = kein Zusatz, 2,0 = Band bei 100 % Mischung ungefähr verdoppeln.">?</span></span>
+              <input id="turbulenceGainInput" type="number" min="0" max="8" step="0.1" title="0 = Frequenzband dämpfen; 1,0 = unverändert; höhere Werte verstärken Turbulenzstöße">
+            </label>
+            <label>
+              <span class="setting-label">Untergrenze (Hz) <span class="help-tip" tabindex="0" role="note" aria-label="Blendet langsame Bewegungen unterhalb dieser Frequenz aus. Höhere Werte trennen Pitch- und Steigbewegungen stärker ab, können aber langwellige Turbulenz verlieren." data-tooltip="Blendet langsamere Bewegungen aus. Höher = weniger Pitch/Steigen, aber auch weniger langwellige Turbulenz.">?</span></span>
+              <input id="turbulenceLowCutInput" type="number" min="0.05" max="10" step="0.05" title="Hochpass-Untergrenze: höhere Werte lassen nur kürzere Stöße durch">
+            </label>
+            <label>
+              <span class="setting-label">Obergrenze (Hz) <span class="help-tip" tabindex="0" role="note" aria-label="Blendet sehr schnelle Anteile oberhalb dieser Frequenz aus. Niedrigere Werte wirken weicher, höhere Werte übertragen härtere Schläge und mehr Rauschen." data-tooltip="Blendet sehr schnelle Anteile aus. Niedriger = weicher; höher = härter und detailreicher, aber rauschanfälliger.">?</span></span>
+              <input id="turbulenceHighCutInput" type="number" min="0.1" max="20" step="0.1" title="Tiefpass-Obergrenze: höhere Werte übertragen schnellere und härtere Stöße">
+            </label>
+            <label>
+              <span class="setting-label">Soft-Limit extra (g) <span class="help-tip" tabindex="0" role="note" aria-label="Begrenzt nur den zusätzlich erzeugten Turbulenzanteil weich. Das originale Beschleunigungssignal wird nicht begrenzt. Kleinere Werte schützen vor heftigen Spitzen." data-tooltip="Weiche Obergrenze nur für den Zusatzanteil. Kleiner = sanfter und weniger Overallocation; das Originalsignal bleibt unangetastet.">?</span></span>
+              <input id="turbulenceMaxExtraInput" type="number" min="0.01" max="2" step="0.01" title="Maximaler zusätzlicher Turbulenzanteil in g; das Basissignal wird nicht begrenzt">
+            </label>
           </div>
           <div class="turbulence-live-grid">
             <span><small>Quelle</small><output id="turbulenceSourceLive">—</output></span>

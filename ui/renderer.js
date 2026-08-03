@@ -16,7 +16,7 @@ const elements = Object.fromEntries([
   'turbulenceSourceSelect', 'turbulenceMixInput', 'turbulenceGainInput',
   'turbulenceLowCutInput', 'turbulenceHighCutInput', 'turbulenceMaxExtraInput',
   'turbulenceSourceLive', 'turbulenceBandLive', 'turbulenceExtraLive',
-  'turbulenceFinalLive', 'turbulenceStatus'
+  'turbulenceFinalLive', 'turbulenceStatus', 'turbulencePresetState'
 ].map((id) => [id, document.getElementById(id)]));
 
 let state = null;
@@ -313,6 +313,27 @@ function turbulenceSourceOptions(selectedId) {
   return groupedSourceOptions(sources, selectedId);
 }
 
+function activeTurbulencePreset() {
+  const config = draftConfig.turbulence || {};
+  return (state.catalog.turbulencePresets || []).find((preset) => (
+    Math.abs(Number(config.mix) - preset.mix) < 1e-9 &&
+    Math.abs(Number(config.gain) - preset.gain) < 1e-9 &&
+    Math.abs(Number(config.lowCutHz) - preset.lowCutHz) < 1e-9 &&
+    Math.abs(Number(config.highCutHz) - preset.highCutHz) < 1e-9 &&
+    Math.abs(Number(config.maxExtraG) - preset.maxExtraG) < 1e-9
+  ));
+}
+
+function renderTurbulencePresetState() {
+  const active = activeTurbulencePreset();
+  for (const button of document.querySelectorAll('[data-turbulence-preset]')) {
+    button.setAttribute('aria-pressed', String(button.dataset.turbulencePreset === active?.id));
+  }
+  elements.turbulencePresetState.textContent = active
+    ? `${active.label}: ${active.description}`
+    : 'Benutzerdefiniert';
+}
+
 function renderDynamicsConfig() {
   elements.gravityEnabledInput.checked = draftConfig.gravity?.enabled === true;
   elements.gravityStrengthInput.value = draftConfig.gravity?.strengthG ?? 1;
@@ -327,6 +348,7 @@ function renderDynamicsConfig() {
   elements.turbulenceLowCutInput.value = draftConfig.turbulence?.lowCutHz ?? 0.7;
   elements.turbulenceHighCutInput.value = draftConfig.turbulence?.highCutHz ?? 5;
   elements.turbulenceMaxExtraInput.value = draftConfig.turbulence?.maxExtraG ?? 0.2;
+  renderTurbulencePresetState();
 }
 
 function renderMappings() {
@@ -590,6 +612,7 @@ bindConfigInput(elements.periodSelect, 'period');
 function bindNestedCheckbox(element, section, key) {
   element.addEventListener('change', () => {
     draftConfig[section][key] = element.checked;
+    if (section === 'turbulence') renderTurbulencePresetState();
     queueSave();
   });
 }
@@ -597,6 +620,7 @@ function bindNestedCheckbox(element, section, key) {
 function bindNestedNumber(element, section, key, transform = Number) {
   element.addEventListener('change', () => {
     draftConfig[section][key] = transform(element.value);
+    if (section === 'turbulence') renderTurbulencePresetState();
     queueSave();
   });
 }
@@ -614,6 +638,25 @@ bindNestedNumber(elements.turbulenceGainInput, 'turbulence', 'gain');
 bindNestedNumber(elements.turbulenceLowCutInput, 'turbulence', 'lowCutHz');
 bindNestedNumber(elements.turbulenceHighCutInput, 'turbulence', 'highCutHz');
 bindNestedNumber(elements.turbulenceMaxExtraInput, 'turbulence', 'maxExtraG');
+
+for (const button of document.querySelectorAll('[data-turbulence-preset]')) {
+  button.addEventListener('click', () => {
+    const preset = (state.catalog.turbulencePresets || []).find(
+      (entry) => entry.id === button.dataset.turbulencePreset
+    );
+    if (!preset) return;
+    Object.assign(draftConfig.turbulence, {
+      enabled: true,
+      mix: preset.mix,
+      gain: preset.gain,
+      lowCutHz: preset.lowCutHz,
+      highCutHz: preset.highCutHz,
+      maxExtraG: preset.maxExtraG
+    });
+    renderDynamicsConfig();
+    queueSave();
+  });
+}
 
 elements.startButton.addEventListener('click', () => window.accusimRouter.start());
 elements.stopButton.addEventListener('click', () => window.accusimRouter.stop());

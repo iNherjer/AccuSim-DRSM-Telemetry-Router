@@ -20,6 +20,7 @@ const {
   OUTPUTS,
   SAFE_OPERATION_COMPATIBILITY,
   SAFE_SOURCE_IDS,
+  TURBULENCE_PRESETS,
   TURBULENCE_SOURCE_IDS,
   UNIT_DEFINITIONS
 } = require('./lib/catalog');
@@ -55,6 +56,7 @@ function publicCatalog() {
     operationCompatibility: OPERATION_COMPATIBILITY,
     safeOperationCompatibility: SAFE_OPERATION_COMPATIBILITY,
     safeSourceIds: SAFE_SOURCE_IDS,
+    turbulencePresets: TURBULENCE_PRESETS,
     turbulenceSourceIds: TURBULENCE_SOURCE_IDS
   };
 }
@@ -241,11 +243,11 @@ async function startApplication() {
     updateController.setState({
       supported: true,
       phase,
-      version: '1.4.0',
+      version: '1.5.0',
       percent: phase === 'downloading' ? 46 : (phase === 'ready' ? 100 : 0),
       message: phase === 'ready'
         ? 'Update ist geladen und geprüft. Installation beim Neustart oder beim nächsten Beenden.'
-        : (phase === 'downloading' ? 'Update wird geladen … 46 %' : 'Version 1.4.0 ist verfügbar.')
+        : (phase === 'downloading' ? 'Update wird geladen … 46 %' : 'Version 1.5.0 ist verfügbar.')
     });
   }
   registerIpc();

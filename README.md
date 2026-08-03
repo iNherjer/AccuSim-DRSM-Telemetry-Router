@@ -66,7 +66,8 @@ Telemetry Router ── mapping / unit conversion ──► DCS v2 JSON over UDP
 - Configurable UDP host, port, packet name, and sampling period
 - Atomic persistent JSON configuration
 - DCS-compatible attitude-dependent 1 G gravity reference
-- Optional turbulence mixer with band-pass, blend, gain, and soft G limit
+- Optional turbulence mixer with four presets, band-pass, blend, gain, and soft G limit
+- Contextual tooltips explain every turbulence input and its effect
 - Fixed three-element DCS vectors to prevent malformed Primary cue packets
 - CSV recording of raw sources, routed outputs, gravity, and turbulence diagnostics
 
@@ -96,6 +97,21 @@ The optional turbulence mixer leaves the original acceleration intact. It
 isolates a configurable fast band (default `0.7–5 Hz`) and blends only that
 component into vertical acceleration, with an adjustable soft limit. It is off
 by default for safe initial testing.
+
+Four presets provide repeatable starting points. Selecting one enables the
+mixer and copies its values into the normal controls; every value can still be
+edited afterwards.
+
+| Preset | Mix | Gain | Band | Extra soft limit | Intended use |
+| --- | ---: | ---: | ---: | ---: | --- |
+| Light | 25% | 1.6× | 0.9–4 Hz | 0.08 G | Subtle air movement |
+| Medium | 50% | 2.5× | 0.7–5 Hz | 0.20 G | Balanced default |
+| Strong | 75% | 3.5× | 0.5–7 Hz | 0.30 G | Clearly noticeable turbulence |
+| Extreme | 100% | 5.0× | 0.3–10 Hz | 0.50 G | Short diagnostic tests only |
+
+The `?` controls explain how mix, gain, cutoff frequencies, source choice, and
+the soft limit affect the output. Extreme settings can cause DRSM axis
+overallocation and should be approached gradually.
 
 The A2A rotation-acceleration LVars can be selected for comparison. Since DRSM
 expects angular velocity in `rad/s`, a `rad/s²` source is integrated only when
