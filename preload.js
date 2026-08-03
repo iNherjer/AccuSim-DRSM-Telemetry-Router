@@ -6,6 +6,8 @@ contextBridge.exposeInMainWorld('accusimRouter', {
   getState: () => ipcRenderer.invoke('app:get-state'),
   start: () => ipcRenderer.invoke('router:start'),
   stop: () => ipcRenderer.invoke('router:stop'),
+  startRecording: () => ipcRenderer.invoke('recording:start'),
+  stopRecording: () => ipcRenderer.invoke('recording:stop'),
   checkForUpdates: () => ipcRenderer.invoke('update:check'),
   downloadUpdate: () => ipcRenderer.invoke('update:download'),
   skipUpdate: () => ipcRenderer.invoke('update:skip'),

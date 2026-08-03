@@ -86,10 +86,63 @@
       <div class="action-row">
         <button id="startButton" class="primary-button" type="button">Bridge starten</button>
         <button id="stopButton" class="secondary-button" type="button">Stoppen</button>
+        <button id="recordButton" class="secondary-button record-button" type="button">● CSV aufnehmen</button>
+        <button id="stopRecordButton" class="secondary-button" type="button">CSV stoppen</button>
         <button id="disableAllButton" class="secondary-button" type="button">Alle Kanäle aus</button>
         <button id="resetButton" class="text-button danger" type="button">Standardzuordnung wiederherstellen</button>
       </div>
       <p id="runtimeDetail" class="runtime-detail">Bridge ist nicht gestartet.</p>
+      <p id="recordingDetail" class="recording-detail">CSV-Aufzeichnung ist aus.</p>
+    </section>
+
+    <section class="panel dynamics-panel">
+      <div class="panel-heading">
+        <div>
+          <p class="eyebrow">DCS-BESCHLEUNIGUNG</p>
+          <h2>Gravity Reference & Turbulenzmischer</h2>
+        </div>
+      </div>
+      <div class="processor-grid">
+        <article class="processor-card">
+          <div class="processor-title-row">
+            <div>
+              <strong>DCS-Gravitationsvektor</strong>
+              <small>Ergänzt die fehlende Ruhelast lageabhängig</small>
+            </div>
+            <label class="switch-label"><input id="gravityEnabledInput" type="checkbox"><span>Aktiv</span></label>
+          </div>
+          <label class="compact-setting"><span>Stärke (g)</span><input id="gravityStrengthInput" type="number" min="0" max="2" step="0.05"></label>
+          <div class="processor-live-row">
+            <span><small>DCS Gravity [lateral, longitudinal, vertical]</small><output id="gravityVectorLive">[0, 0, −1]</output></span>
+          </div>
+          <p class="hint">Die A2A-FM-Werte sind um 0 zentriert. DCS liefert bei waagerechter Ruhelage einen 1-g-Vektor mit <strong>−1 g vertikal</strong>; Pitch und Roll drehen diesen Vektor mit.</p>
+        </article>
+
+        <article class="processor-card turbulence-card">
+          <div class="processor-title-row">
+            <div>
+              <strong>Turbulenzmischer</strong>
+              <small>Mischt nur schnelle Stöße zusätzlich in Heave</small>
+            </div>
+            <label class="switch-label"><input id="turbulenceEnabledInput" type="checkbox"><span>Aktiv</span></label>
+          </div>
+          <div class="turbulence-settings">
+            <label class="wide-setting"><span>Signalquelle</span><select id="turbulenceSourceSelect"></select></label>
+            <label><span>Mischung (%)</span><input id="turbulenceMixInput" type="number" min="0" max="100" step="5"></label>
+            <label><span>Band-Verstärkung</span><input id="turbulenceGainInput" type="number" min="0" max="8" step="0.1"></label>
+            <label><span>Untergrenze (Hz)</span><input id="turbulenceLowCutInput" type="number" min="0.05" max="10" step="0.05"></label>
+            <label><span>Obergrenze (Hz)</span><input id="turbulenceHighCutInput" type="number" min="0.1" max="20" step="0.1"></label>
+            <label><span>Soft-Limit extra (g)</span><input id="turbulenceMaxExtraInput" type="number" min="0.01" max="2" step="0.01"></label>
+          </div>
+          <div class="turbulence-live-grid">
+            <span><small>Quelle</small><output id="turbulenceSourceLive">—</output></span>
+            <span><small>Bandpass</small><output id="turbulenceBandLive">—</output></span>
+            <span><small>Extra Heave</small><output id="turbulenceExtraLive">—</output></span>
+            <span><small>Vertikal gesamt</small><output id="turbulenceFinalLive">—</output></span>
+          </div>
+          <p id="turbulenceStatus" class="hint">Aus: Die A2A-Beschleunigung wird unverändert weitergegeben.</p>
+        </article>
+      </div>
     </section>
 
     <section class="panel mapping-panel">
@@ -110,7 +163,7 @@
       </div>
       <p id="viewHint" class="mode-hint">Basisansicht: nur die für den Comanche-Test relevanten Motion- und Motorkanäle.</p>
       <div class="legend">
-        <span>Ein</span><span>Eingangsquelle</span><span class="expert-only">Format</span><span class="expert-only">Rechenart</span><span class="expert-only">Faktor</span><span class="expert-only">Offset</span><span>Eingang live</span><span>DCS-Ausgang</span><span>Ausgabe live</span>
+        <span>Ein</span><span>Eingangsquelle</span><span>Inv.</span><span class="expert-only">Format</span><span class="expert-only">Rechenart</span><span class="expert-only">Faktor</span><span class="expert-only">Offset</span><span>Eingang live</span><span>DCS-Ausgang</span><span>Ausgabe live</span>
       </div>
       <div id="mappingGroups" class="mapping-groups"></div>
     </section>
