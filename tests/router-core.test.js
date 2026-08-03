@@ -6,12 +6,13 @@ const {
   BUILTIN_SOURCES,
   OUTPUTS,
   SAFE_SOURCE_IDS,
+  TURBULENCE_SOURCE_IDS,
   UNIT_DEFINITIONS,
   buildDefaultConfig,
   compatibleOperationIds,
   safeCompatibleOperationIds
 } = require('../lib/catalog');
-const { RouterCore, normalizeConfig, operationCompatible, requiredSources } = require('../lib/router-core');
+const { RouterCore, gravityVector, normalizeConfig, operationCompatible, requiredSources } = require('../lib/router-core');
 
 function close(actual, expected, epsilon = 1e-9) {
   assert(Math.abs(actual - expected) <= epsilon, `expected ${expected}, got ${actual}`);
@@ -51,10 +52,12 @@ test('default mapping emits the validated essential Comanche channels', () => {
     'a2a.canopy': 50,
     'std.gear': 1
   }, 10);
-  assert.deepEqual(result.packet.acc, [1, 3, 2]);
+  close(result.packet.acc[0], 1 + Math.sin(-Math.PI / 9) * Math.cos(-Math.PI / 18));
+  close(result.packet.acc[1], 3 - Math.sin(-Math.PI / 18));
+  close(result.packet.acc[2], 2 - Math.cos(-Math.PI / 9) * Math.cos(-Math.PI / 18));
   assert.deepEqual(result.packet.ang_vel, [1, 3, 2]);
-  close(result.packet.pitch, Math.PI / 18);
-  close(result.packet.roll, Math.PI / 9);
+  close(result.packet.pitch, -Math.PI / 18);
+  close(result.packet.roll, -Math.PI / 9);
   close(result.packet.yaw, -Math.PI / 2);
   close(result.packet.alt_agl, 304.8);
   close(result.packet.ias, 46.3);
@@ -181,11 +184,90 @@ test('legacy full default is migrated to the reduced basic output set', () => {
   legacy.channels['vel.0'].enabled = true;
   legacy.channels.gear_left.enabled = true;
   const normalized = normalizeConfig(legacy);
-  assert.equal(normalized.schemaVersion, 2);
+  assert.equal(normalized.schemaVersion, 3);
   assert.equal(normalized.expertMode, true);
   assert.equal(normalized.channels['acc.0'].enabled, true);
   assert.equal(normalized.channels['vel.0'].enabled, false);
   assert.equal(normalized.channels.gear_left.enabled, false);
+});
+
+test('schema v2 mappings migrate negative scales into the explicit invert flag', () => {
+  const config = buildDefaultConfig();
+  config.schemaVersion = 2;
+  for (const channel of Object.values(config.channels)) delete channel.invert;
+  config.channels.pitch.scale = 1;
+  config.channels.roll.scale = 1;
+  config.channels.yaw.scale = -1;
+  const normalized = normalizeConfig(config);
+  assert.equal(normalized.channels.pitch.invert, true);
+  assert.equal(normalized.channels.roll.invert, true);
+  assert.equal(normalized.channels.yaw.invert, true);
+  assert.equal(normalized.channels.yaw.scale, 1);
+});
+
+test('DCS gravity reference is a full attitude-dependent 1g vector', () => {
+  const level = gravityVector(0, 0, 1);
+  close(level[0], 0);
+  close(level[1], 0);
+  close(level[2], -1);
+  const banked = gravityVector(0, Math.PI / 6, 1);
+  close(banked[0], 0.5);
+  close(banked[1], 0);
+  close(banked[2], -Math.sqrt(3) / 2);
+});
+
+test('DCS vectors keep a fixed shape when an individual axis is disabled', () => {
+  const config = buildDefaultConfig();
+  config.gravity.enabled = false;
+  config.channels['ang_vel.2'].enabled = false;
+  const result = new RouterCore(config).update({
+    'a2a.acc.x': 0,
+    'a2a.acc.y': 0,
+    'a2a.acc.z': 0,
+    'std.angular.body.x': 1,
+    'std.angular.body.z': 2,
+    'std.pitch': 0,
+    'std.bank': 0,
+    'std.heading': 0,
+    'std.alt.agl': 0,
+    'std.airspeed.ias': 0,
+    'a2a.stall': 0,
+    'a2a.engine.rpm': 0
+  }, 0);
+  assert.deepEqual(result.packet.ang_vel, [1, 2, 0]);
+  assert.equal(result.packet.ang_vel.length, 3);
+});
+
+test('turbulence mixer adds only a bounded band-pass component to vertical acceleration', () => {
+  const config = buildDefaultConfig();
+  config.gravity.enabled = false;
+  config.turbulence.enabled = true;
+  config.turbulence.mix = 1;
+  config.turbulence.gain = 3;
+  config.turbulence.maxExtraG = 0.2;
+  const core = new RouterCore(config);
+  const sample = {
+    'a2a.acc.x': 0,
+    'a2a.acc.y': 0,
+    'a2a.acc.z': 0,
+    'std.angular.body.x': 0,
+    'std.angular.body.y': 0,
+    'std.angular.body.z': 0,
+    'std.pitch': 0,
+    'std.bank': 0,
+    'std.heading': 0,
+    'std.alt.agl': 0,
+    'std.airspeed.ias': 0,
+    'a2a.stall': 0,
+    'a2a.engine.rpm': 0
+  };
+  core.update(sample, 0);
+  sample['a2a.acc.y'] = 0.1 * 9.80665;
+  const result = core.update(sample, 0.02);
+  assert(result.diagnostics.turbulence.bandG > 0);
+  assert(result.diagnostics.turbulence.extraG > 0);
+  assert(result.diagnostics.turbulence.extraG < 0.2);
+  assert(result.packet.acc[2] > 0.1);
 });
 
 test('only enabled channel sources are required and shared sources are deduplicated', () => {
@@ -224,6 +306,15 @@ test('safe expert source catalog is semantic and mathematically reachable', () =
   assert.deepEqual(compatibleOperationIds('scalar', 'acceleration'), []);
   assert.deepEqual(safeCompatibleOperationIds('scalar', 'rpm'), []);
   assert.deepEqual(safeCompatibleOperationIds('boolean', 'ratio'), ['direct']);
+});
+
+test('turbulence source list stays limited to meaningful vertical detectors', () => {
+  assert.deepEqual(TURBULENCE_SOURCE_IDS, [
+    'a2a.acc.y',
+    'std.acc.body.y',
+    'std.gforce',
+    'std.wind.y'
+  ]);
 });
 
 test('safe runtime blocks stored Raw mappings until Raw mode is enabled', () => {

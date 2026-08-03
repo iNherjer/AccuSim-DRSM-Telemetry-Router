@@ -9,7 +9,7 @@ test('web installer closes installed and portable router processes before migrat
   const root = path.resolve(__dirname, '..');
   const packageJson = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
   const includePath = packageJson.build?.nsisWeb?.include;
-  assert.equal(packageJson.version, '1.3.1');
+  assert.equal(packageJson.version, '1.4.0');
   assert.equal(includePath, 'build/installer.nsh');
 
   const installer = fs.readFileSync(path.join(root, includePath), 'utf8');

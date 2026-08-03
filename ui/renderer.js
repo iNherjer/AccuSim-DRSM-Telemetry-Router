@@ -4,13 +4,19 @@ const elements = Object.fromEntries([
   'versionLine', 'processBadge', 'simDot', 'simStatus', 'udpDot', 'udpStatus',
   'sampleRate', 'packetCount', 'nameInput', 'hostInput', 'portInput', 'periodSelect',
   'saveStatus', 'startButton', 'stopButton', 'disableAllButton', 'resetButton',
+  'recordButton', 'stopRecordButton', 'recordingDetail',
   'openFolderButton', 'runtimeDetail', 'filterInput', 'mappingGroups',
   'customSourceForm', 'customLabelInput', 'customVarInput', 'customUnitSelect',
   'customSourceList', 'packetPreview', 'packetSummary', 'expertToggleButton',
   'rawToggleButton', 'viewHint', 'customSourcesPanel', 'packetPanel',
   'updateCheckButton', 'updateBanner', 'updateTitle', 'updateMessage',
   'updateProgressWrap', 'updateProgress', 'downloadUpdateButton',
-  'skipUpdateButton', 'restartUpdateButton'
+  'skipUpdateButton', 'restartUpdateButton', 'gravityEnabledInput',
+  'gravityStrengthInput', 'gravityVectorLive', 'turbulenceEnabledInput',
+  'turbulenceSourceSelect', 'turbulenceMixInput', 'turbulenceGainInput',
+  'turbulenceLowCutInput', 'turbulenceHighCutInput', 'turbulenceMaxExtraInput',
+  'turbulenceSourceLive', 'turbulenceBandLive', 'turbulenceExtraLive',
+  'turbulenceFinalLive', 'turbulenceStatus'
 ].map((id) => [id, document.getElementById(id)]));
 
 let state = null;
@@ -237,6 +243,13 @@ function makeMappingRow(output) {
   });
 
   const selectedSource = state.catalog.sources.find((entry) => entry.id === channel.sourceId);
+  const invert = document.createElement('input');
+  invert.type = 'checkbox';
+  invert.checked = channel.invert === true;
+  invert.className = 'invert-toggle';
+  invert.title = 'Vorzeichen dieses Ausgangskanals manuell invertieren';
+  invert.addEventListener('change', () => updateChannel(output.id, { invert: invert.checked }));
+
   const unitSelect = document.createElement('select');
   unitSelect.className = 'unit-select expert-only';
   unitSelect.appendChild(mappingUnitOptions(output, selectedSource, channel.inputUnit));
@@ -261,7 +274,7 @@ function makeMappingRow(output) {
   scale.step = 'any';
   scale.value = channel.scale;
   scale.className = 'number-input expert-only';
-  scale.title = 'Negativer Faktor invertiert das Vorzeichen';
+  scale.title = 'Multiplikationsfaktor; für Vorzeichen die Inv.-Checkbox verwenden';
   scale.addEventListener('change', () => updateChannel(output.id, { scale: Number(scale.value) }));
 
   const offset = document.createElement('input');
@@ -285,8 +298,35 @@ function makeMappingRow(output) {
   outputLive.dataset.outputValueFor = output.id;
   outputLive.textContent = '—';
 
-  row.append(enable, sourceSelect, unitSelect, operationSelect, scale, offset, inputLive, outputLabel, outputLive);
+  row.append(enable, sourceSelect, invert, unitSelect, operationSelect, scale, offset, inputLive, outputLabel, outputLive);
   return row;
+}
+
+function turbulenceSourceOptions(selectedId) {
+  const allowedFamilies = new Set(['acceleration', 'velocity']);
+  const allowedBuiltinIds = new Set(state.catalog.turbulenceSourceIds || []);
+  const sources = state.catalog.sources.filter((source) => {
+    const family = state.catalog.units[source.inputUnit]?.family;
+    const customSource = source.group === 'Eigene LVars' || source.id.startsWith('custom.');
+    return allowedFamilies.has(family) && (customSource || allowedBuiltinIds.has(source.id));
+  });
+  return groupedSourceOptions(sources, selectedId);
+}
+
+function renderDynamicsConfig() {
+  elements.gravityEnabledInput.checked = draftConfig.gravity?.enabled === true;
+  elements.gravityStrengthInput.value = draftConfig.gravity?.strengthG ?? 1;
+  elements.turbulenceEnabledInput.checked = draftConfig.turbulence?.enabled === true;
+  elements.turbulenceSourceSelect.replaceChildren(
+    turbulenceSourceOptions(draftConfig.turbulence?.sourceId || 'a2a.acc.y')
+  );
+  elements.turbulenceSourceSelect.value = draftConfig.turbulence?.sourceId || 'a2a.acc.y';
+  elements.turbulenceSourceSelect.title = elements.turbulenceSourceSelect.selectedOptions[0]?.textContent || '';
+  elements.turbulenceMixInput.value = Math.round(Number(draftConfig.turbulence?.mix ?? 0.5) * 100);
+  elements.turbulenceGainInput.value = draftConfig.turbulence?.gain ?? 2.5;
+  elements.turbulenceLowCutInput.value = draftConfig.turbulence?.lowCutHz ?? 0.7;
+  elements.turbulenceHighCutInput.value = draftConfig.turbulence?.highCutHz ?? 5;
+  elements.turbulenceMaxExtraInput.value = draftConfig.turbulence?.maxExtraG ?? 0.2;
 }
 
 function renderMappings() {
@@ -374,6 +414,7 @@ function renderConfig() {
   elements.hostInput.value = draftConfig.host;
   elements.portInput.value = draftConfig.port;
   elements.periodSelect.value = draftConfig.period;
+  renderDynamicsConfig();
   applyViewMode();
   renderMappings();
   renderCustomSources();
@@ -438,6 +479,34 @@ function renderLive(runtime = {}) {
   elements.runtimeDetail.classList.toggle('error', Boolean(runtime.lastError));
   elements.startButton.disabled = running;
   elements.stopButton.disabled = !running;
+  const recording = runtime.recording || {};
+  elements.recordButton.disabled = !running || recording.active === true;
+  elements.stopRecordButton.disabled = recording.active !== true;
+  elements.recordButton.classList.toggle('recording', recording.active === true);
+  elements.recordingDetail.classList.toggle('error', Boolean(recording.error));
+  elements.recordingDetail.textContent = recording.error
+    ? `CSV-Fehler: ${recording.error}`
+    : (recording.active
+        ? `CSV läuft · ${Number(recording.rows || 0).toLocaleString('de-DE')} Zeilen · ${recording.path || ''}`
+        : (recording.path ? `CSV gespeichert · ${recording.path}` : 'CSV-Aufzeichnung ist aus.'));
+
+  const diagnostics = runtime.diagnostics || {};
+  const gravityVector = diagnostics.gravity?.vectorG || (draftConfig.gravity?.enabled
+    ? [0, 0, -Number(draftConfig.gravity?.strengthG ?? 1)]
+    : [0, 0, 0]);
+  elements.gravityVectorLive.textContent = `[${gravityVector.map((value) => numberText(value, 3)).join(', ')}] g`;
+  const turbulence = diagnostics.turbulence || {};
+  elements.turbulenceSourceLive.textContent = `${numberText(turbulence.sourceG, 4)} g`;
+  elements.turbulenceBandLive.textContent = `${numberText(turbulence.bandG, 4)} g`;
+  elements.turbulenceExtraLive.textContent = `${numberText(turbulence.extraG, 4)} g`;
+  elements.turbulenceFinalLive.textContent = diagnostics.accelerationG
+    ? `${numberText(diagnostics.accelerationG[2], 4)} g`
+    : '—';
+  const turbulenceError = runtime.channelErrors?.turbulence || '';
+  elements.turbulenceStatus.classList.toggle('error', Boolean(turbulenceError));
+  elements.turbulenceStatus.textContent = turbulenceError || (draftConfig.turbulence?.enabled
+    ? `${turbulence.limited ? 'Soft-Limit aktiv · ' : ''}Nur das Band ${numberText(draftConfig.turbulence.lowCutHz, 2)}–${numberText(draftConfig.turbulence.highCutHz, 2)} Hz wird zusätzlich in Heave gemischt.`
+    : 'Aus: Die A2A-Beschleunigung wird ohne zusätzliche Turbulenzverstärkung weitergegeben.');
 
   for (const output of state.catalog.outputs) {
     const channel = draftConfig.channels[output.id];
@@ -518,8 +587,38 @@ bindConfigInput(elements.hostInput, 'host', (value) => value.trim());
 bindConfigInput(elements.portInput, 'port', Number);
 bindConfigInput(elements.periodSelect, 'period');
 
+function bindNestedCheckbox(element, section, key) {
+  element.addEventListener('change', () => {
+    draftConfig[section][key] = element.checked;
+    queueSave();
+  });
+}
+
+function bindNestedNumber(element, section, key, transform = Number) {
+  element.addEventListener('change', () => {
+    draftConfig[section][key] = transform(element.value);
+    queueSave();
+  });
+}
+
+bindNestedCheckbox(elements.gravityEnabledInput, 'gravity', 'enabled');
+bindNestedNumber(elements.gravityStrengthInput, 'gravity', 'strengthG');
+bindNestedCheckbox(elements.turbulenceEnabledInput, 'turbulence', 'enabled');
+elements.turbulenceSourceSelect.addEventListener('change', () => {
+  draftConfig.turbulence.sourceId = elements.turbulenceSourceSelect.value;
+  elements.turbulenceSourceSelect.title = elements.turbulenceSourceSelect.selectedOptions[0]?.textContent || '';
+  queueSave();
+});
+bindNestedNumber(elements.turbulenceMixInput, 'turbulence', 'mix', (value) => Number(value) / 100);
+bindNestedNumber(elements.turbulenceGainInput, 'turbulence', 'gain');
+bindNestedNumber(elements.turbulenceLowCutInput, 'turbulence', 'lowCutHz');
+bindNestedNumber(elements.turbulenceHighCutInput, 'turbulence', 'highCutHz');
+bindNestedNumber(elements.turbulenceMaxExtraInput, 'turbulence', 'maxExtraG');
+
 elements.startButton.addEventListener('click', () => window.accusimRouter.start());
 elements.stopButton.addEventListener('click', () => window.accusimRouter.stop());
+elements.recordButton.addEventListener('click', () => window.accusimRouter.startRecording());
+elements.stopRecordButton.addEventListener('click', () => window.accusimRouter.stopRecording());
 elements.updateCheckButton.addEventListener('click', () => window.accusimRouter.checkForUpdates());
 elements.downloadUpdateButton.addEventListener('click', () => window.accusimRouter.downloadUpdate());
 elements.skipUpdateButton.addEventListener('click', () => window.accusimRouter.skipUpdate());

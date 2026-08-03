@@ -20,6 +20,7 @@ const {
   OUTPUTS,
   SAFE_OPERATION_COMPATIBILITY,
   SAFE_SOURCE_IDS,
+  TURBULENCE_SOURCE_IDS,
   UNIT_DEFINITIONS
 } = require('./lib/catalog');
 const { allSources } = require('./lib/router-core');
@@ -53,7 +54,8 @@ function publicCatalog() {
     operations: OPERATIONS,
     operationCompatibility: OPERATION_COMPATIBILITY,
     safeOperationCompatibility: SAFE_OPERATION_COMPATIBILITY,
-    safeSourceIds: SAFE_SOURCE_IDS
+    safeSourceIds: SAFE_SOURCE_IDS,
+    turbulenceSourceIds: TURBULENCE_SOURCE_IDS
   };
 }
 
@@ -175,6 +177,8 @@ function registerIpc() {
   ipcMain.handle('app:get-state', () => currentState());
   ipcMain.handle('router:start', () => runtime.start());
   ipcMain.handle('router:stop', () => runtime.stop());
+  ipcMain.handle('recording:start', () => runtime.startRecording());
+  ipcMain.handle('recording:stop', () => runtime.stopRecording());
   ipcMain.handle('update:check', () => updateController.check({ manual: true }));
   ipcMain.handle('update:download', () => updateController.download());
   ipcMain.handle('update:skip', () => updateController.skip());
@@ -208,7 +212,7 @@ async function startApplication() {
   const dataDirectory = path.join(documentsDirectory, 'VFR Multitool', 'AccuSim DRSM Router');
   store = new BridgeConfigStore({ dataDirectory });
   config = store.read();
-  runtime = new TelemetryRuntime(config);
+  runtime = new TelemetryRuntime(config, { recordingDirectory: path.join(dataDirectory, 'logs') });
   const portableBuild = Boolean(process.env.PORTABLE_EXECUTABLE_FILE);
   updateController = new UpdateController({
     autoUpdater,
@@ -237,11 +241,11 @@ async function startApplication() {
     updateController.setState({
       supported: true,
       phase,
-      version: '1.3.1',
+      version: '1.4.0',
       percent: phase === 'downloading' ? 46 : (phase === 'ready' ? 100 : 0),
       message: phase === 'ready'
         ? 'Update ist geladen und geprüft. Installation beim Neustart oder beim nächsten Beenden.'
-        : (phase === 'downloading' ? 'Update wird geladen … 46 %' : 'Version 1.3.1 ist verfügbar.')
+        : (phase === 'downloading' ? 'Update wird geladen … 46 %' : 'Version 1.4.0 ist verfügbar.')
     });
   }
   registerIpc();

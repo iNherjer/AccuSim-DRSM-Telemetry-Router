@@ -50,7 +50,7 @@ Telemetry Router ── mapping / unit conversion ──► DCS v2 JSON over UDP
 - Per-channel choice between a suitable standard SimVar and known Accu-Sim LVar
 - Exact LVar names displayed directly in the source selector
 - Live raw input and converted DCS output values
-- Per-channel enable/disable controls
+- Per-channel enable/disable and explicit inversion controls
 - Automatic conversion between compatible physical units
 - Safe Expert mode filters sources, units, and operations by output semantics
 - Scale, offset, axis inversion, integration, and differentiation in Expert mode
@@ -65,6 +65,10 @@ Telemetry Router ── mapping / unit conversion ──► DCS v2 JSON over UDP
 - Small web bootstrapper plus an optional manual-update portable executable
 - Configurable UDP host, port, packet name, and sampling period
 - Atomic persistent JSON configuration
+- DCS-compatible attitude-dependent 1 G gravity reference
+- Optional turbulence mixer with band-pass, blend, gain, and soft G limit
+- Fixed three-element DCS vectors to prevent malformed Primary cue packets
+- CSV recording of raw sources, routed outputs, gravity, and turbulence diagnostics
 
 ## Core Comanche mapping
 
@@ -81,6 +85,18 @@ Telemetry Router ── mapping / unit conversion ──► DCS v2 JSON over UDP
 | `alt_agl` | `PLANE ALT ABOVE GROUND` | feet → metres |
 | `rpm_left`, `prop_rpm` | `L:Eng1_RPM` | RPM |
 
+The A2A body-acceleration LVars are centred around zero and do not include the
+DCS gravity reference. By default, the router adds a full attitude-dependent
+gravity vector. In level flight this is `[0, 0, -1] G`; pitch and roll rotate it
+across all three body axes so DRSM can apply its normal DCS gravity compensation.
+Disable this processor only when using an input that already contains the 1 G
+reference.
+
+The optional turbulence mixer leaves the original acceleration intact. It
+isolates a configurable fast band (default `0.7–5 Hz`) and blends only that
+component into vertical acceleration, with an adjustable soft limit. It is off
+by default for safe initial testing.
+
 The A2A rotation-acceleration LVars can be selected for comparison. Since DRSM
 expects angular velocity in `rad/s`, a `rad/s²` source is integrated only when
 the user explicitly selects that operation. The integration resets after a
@@ -94,6 +110,9 @@ telemetry gap or configuration change to limit runaway drift.
 3. In DRSM, select **DCS World** as the telemetry source and use UDP port `4135`.
 4. Start the installed **AccuSim DRSM Telemetry Router**.
 5. Click **Bridge starten**.
+
+For a diagnostic log, click **CSV aufnehmen** after the bridge is running and
+**CSV stoppen** when the manoeuvre is complete.
 
 Do not run another DCS-format telemetry sender to the same DRSM endpoint at the
 same time, or DRSM may receive conflicting packets.
@@ -124,6 +143,12 @@ The app saves its configuration to:
 
 ```text
 Documents\VFR Multitool\AccuSim DRSM Router\bridge-config.json
+```
+
+CSV recordings are stored in:
+
+```text
+Documents\VFR Multitool\AccuSim DRSM Router\logs
 ```
 
 Closing the window hides the app in the Windows tray. Use the tray menu to stop
