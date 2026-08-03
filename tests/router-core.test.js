@@ -3,7 +3,7 @@
 const assert = require('node:assert/strict');
 const test = require('node:test');
 const { BUILTIN_SOURCES, OUTPUTS, buildDefaultConfig } = require('../lib/catalog');
-const { RouterCore, normalizeConfig, operationCompatible } = require('../lib/router-core');
+const { RouterCore, normalizeConfig, operationCompatible, requiredSources } = require('../lib/router-core');
 
 function close(actual, expected, epsilon = 1e-9) {
   assert(Math.abs(actual - expected) <= epsilon, `expected ${expected}, got ${actual}`);
@@ -178,4 +178,21 @@ test('legacy full default is migrated to the reduced basic output set', () => {
   assert.equal(normalized.channels['acc.0'].enabled, true);
   assert.equal(normalized.channels['vel.0'].enabled, false);
   assert.equal(normalized.channels.gear_left.enabled, false);
+});
+
+test('only enabled channel sources are required and shared sources are deduplicated', () => {
+  const config = buildDefaultConfig();
+  const defaults = requiredSources(config).map((entry) => entry.id);
+  assert.equal(defaults.length, 13);
+  assert.equal(defaults.includes('a2a.engine.rpm'), true);
+  assert.equal(defaults.includes('std.gear.left'), false);
+  assert.equal(defaults.includes('std.wind.x'), false);
+
+  config.channels['acc.0'].sourceId = 'std.acc.body.x';
+  config.channels['acc.1'].enabled = false;
+  const changed = requiredSources(config).map((entry) => entry.id);
+  assert.equal(changed.includes('std.acc.body.x'), true);
+  assert.equal(changed.includes('a2a.acc.x'), false);
+  assert.equal(changed.includes('a2a.acc.z'), false);
+  assert.equal(changed.filter((id) => id === 'a2a.engine.rpm').length, 1);
 });

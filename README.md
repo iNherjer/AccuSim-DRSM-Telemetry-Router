@@ -55,7 +55,9 @@ Telemetry Router ── mapping / unit conversion ──► DCS v2 JSON over UDP
 - Scale, offset, axis inversion, integration, and differentiation in Expert mode
 - Full documented numeric DCS v2 output catalog in Expert mode
 - User-defined LVars with add/remove controls
+- SimConnect subscribes only to sources selected by enabled output channels
 - Automatically reconnecting SimConnect client
+- Renderer updates freeze while the window is hidden or minimized; telemetry continues
 - Configurable UDP host, port, packet name, and sampling period
 - Atomic persistent JSON configuration
 
@@ -111,7 +113,15 @@ Documents\VFR Multitool\AccuSim DRSM Router\bridge-config.json
 ```
 
 Closing the window hides the app in the Windows tray. Use the tray menu to stop
-the bridge or quit the application completely.
+the bridge or quit the application completely. While hidden or minimized, the
+Chromium renderer receives no live telemetry snapshots. SimConnect processing
+and UDP output continue normally, and the UI receives one current snapshot when
+it is shown again.
+
+The default profile maps 14 output channels to 13 unique SimConnect sources.
+Shared inputs such as `L:Eng1_RPM` are subscribed only once. Changing scale or
+offset does not reconnect SimConnect; changing an enabled channel's source or
+sampling period rebuilds the compact subscription automatically.
 
 ## Development
 

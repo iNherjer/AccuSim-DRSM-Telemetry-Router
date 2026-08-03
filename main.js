@@ -15,6 +15,7 @@ const { BridgeConfigStore } = require('./lib/config-store');
 const { BUILTIN_SOURCES, OPERATIONS, OUTPUTS, UNIT_DEFINITIONS } = require('./lib/catalog');
 const { allSources } = require('./lib/router-core');
 const { TelemetryRuntime } = require('./lib/telemetry-runtime');
+const { shouldBroadcastToWindow } = require('./lib/window-visibility');
 
 const singleInstanceLock = app.requestSingleInstanceLock();
 
@@ -52,15 +53,17 @@ function currentState() {
   };
 }
 
-function broadcastState() {
-  if (!mainWindow || mainWindow.isDestroyed()) return;
+function broadcastState(force = false) {
+  if (!shouldBroadcastToWindow(mainWindow, force)) return;
   mainWindow.webContents.send('state:changed', currentState());
 }
 
 function showWindow() {
   if (!mainWindow || mainWindow.isDestroyed()) return;
+  if (mainWindow.isMinimized()) mainWindow.restore();
   mainWindow.show();
   mainWindow.focus();
+  broadcastState(true);
 }
 
 function createWindow() {
@@ -77,7 +80,8 @@ function createWindow() {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
       nodeIntegration: false,
-      sandbox: true
+      sandbox: true,
+      backgroundThrottling: true
     }
   });
   mainWindow.setMenuBarVisibility(false);
@@ -105,6 +109,7 @@ function createWindow() {
     event.preventDefault();
     mainWindow.hide();
   });
+  mainWindow.on('restore', () => broadcastState(true));
 }
 
 function createTray() {
@@ -159,7 +164,7 @@ async function startApplication() {
   store = new BridgeConfigStore({ dataDirectory });
   config = store.read();
   runtime = new TelemetryRuntime(config);
-  runtime.on('state', broadcastState);
+  runtime.on('state', () => broadcastState());
   registerIpc();
   createWindow();
   createTray();
