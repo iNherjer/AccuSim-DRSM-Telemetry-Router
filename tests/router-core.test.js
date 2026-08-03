@@ -6,6 +6,7 @@ const {
   BUILTIN_SOURCES,
   OUTPUTS,
   SAFE_SOURCE_IDS,
+  TURBULENCE_PRESETS,
   TURBULENCE_SOURCE_IDS,
   UNIT_DEFINITIONS,
   buildDefaultConfig,
@@ -17,6 +18,26 @@ const { RouterCore, gravityVector, normalizeConfig, operationCompatible, require
 function close(actual, expected, epsilon = 1e-9) {
   assert(Math.abs(actual - expected) <= epsilon, `expected ${expected}, got ${actual}`);
 }
+
+test('turbulence presets increase monotonically from light to extreme', () => {
+  assert.deepEqual(TURBULENCE_PRESETS.map((preset) => preset.id), [
+    'light', 'medium', 'strong', 'extreme'
+  ]);
+  const defaults = buildDefaultConfig().turbulence;
+  const medium = TURBULENCE_PRESETS.find((preset) => preset.id === 'medium');
+  for (const key of ['mix', 'gain', 'lowCutHz', 'highCutHz', 'maxExtraG']) {
+    assert.equal(medium[key], defaults[key]);
+  }
+  for (let index = 1; index < TURBULENCE_PRESETS.length; index += 1) {
+    const previous = TURBULENCE_PRESETS[index - 1];
+    const current = TURBULENCE_PRESETS[index];
+    assert(current.mix > previous.mix);
+    assert(current.gain > previous.gain);
+    assert(current.maxExtraG > previous.maxExtraG);
+    assert(current.lowCutHz < previous.lowCutHz);
+    assert(current.highCutHz > previous.highCutHz);
+  }
+});
 
 test('default mapping emits the validated essential Comanche channels', () => {
   const core = new RouterCore(buildDefaultConfig());

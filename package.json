@@ -1,6 +1,6 @@
 {
   "name": "accusim-drsm-telemetry-router",
-  "version": "1.4.0",
+  "version": "1.5.0",
   "private": true,
   "description": "Configurable MSFS SimConnect to DRSM DCS v2 telemetry router",
   "author": "VFR Multitool",
@@ -49,12 +49,6 @@
           "arch": [
             "x64"
           ]
-        },
-        {
-          "target": "portable",
-          "arch": [
-            "x64"
-          ]
         }
       ],
       "icon": "assets/icon-512.png"
@@ -68,9 +62,6 @@
       "deleteAppDataOnUninstall": false,
       "include": "build/installer.nsh",
       "artifactName": "AccuSim-DRSM-Telemetry-Router-Setup.${ext}"
-    },
-    "portable": {
-      "artifactName": "AccuSim-DRSM-Telemetry-Router.exe"
     },
     "publish": [
       {

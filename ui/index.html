@@ -21,8 +21,14 @@
         <p id="versionLine" class="subtle">Konfigurierbare DRSM-Bridge</p>
       </div>
       <div class="hero-actions">
-        <button id="updateCheckButton" class="update-check-button" type="button">Updates</button>
-        <span id="processBadge" class="badge waiting">Bereit</span>
+        <label class="language-picker"><span data-i18n="language.label">Sprache</span>
+          <select id="languageSelect" aria-label="Sprache" data-i18n-aria="language.label">
+            <option value="de">Deutsch</option>
+            <option value="en">English</option>
+          </select>
+        </label>
+        <button id="updateCheckButton" class="update-check-button" type="button" data-i18n="update.check">Updates</button>
+        <span id="processBadge" class="badge waiting" data-i18n="status.ready">Bereit</span>
       </div>
     </header>
 
@@ -30,66 +36,66 @@
       <div class="update-symbol" aria-hidden="true">↓</div>
       <div class="update-copy">
         <p class="eyebrow">ROUTER-UPDATE</p>
-        <h2 id="updateTitle">Neue Version verfügbar</h2>
-        <p id="updateMessage" class="subtle">Ein Update steht bereit.</p>
+        <h2 id="updateTitle" data-i18n="update.availableTitle">Neue Version verfügbar</h2>
+        <p id="updateMessage" class="subtle" data-i18n="update.availableBody">Ein Update steht bereit.</p>
         <div id="updateProgressWrap" class="update-progress-wrap" hidden>
           <span id="updateProgress" class="update-progress"></span>
         </div>
       </div>
       <div class="update-actions">
-        <button id="downloadUpdateButton" class="primary-button" type="button">Update installieren</button>
-        <button id="skipUpdateButton" class="secondary-button" type="button">Diese Version überspringen</button>
-        <button id="restartUpdateButton" class="primary-button" type="button" hidden>Neu starten & installieren</button>
+        <button id="downloadUpdateButton" class="primary-button" type="button" data-i18n="update.install">Update installieren</button>
+        <button id="skipUpdateButton" class="secondary-button" type="button" data-i18n="update.skip">Diese Version überspringen</button>
+        <button id="restartUpdateButton" class="primary-button" type="button" hidden data-i18n="update.restart">Neu starten & installieren</button>
       </div>
     </section>
 
     <section class="status-grid" aria-label="Status">
       <article class="status-card">
         <span id="simDot" class="status-dot waiting"></span>
-        <div><small>MSFS / SimConnect</small><strong id="simStatus">Nicht verbunden</strong></div>
+        <div><small>MSFS / SimConnect</small><strong id="simStatus" data-i18n="status.disconnected">Nicht verbunden</strong></div>
       </article>
       <article class="status-card">
         <span id="udpDot" class="status-dot waiting"></span>
-        <div><small>DRSM DCS UDP</small><strong id="udpStatus">Gestoppt</strong></div>
+        <div><small>DRSM DCS UDP</small><strong id="udpStatus" data-i18n="status.stopped">Gestoppt</strong></div>
       </article>
       <article class="status-card">
-        <small>Abtastrate</small><strong id="sampleRate">0,0 Hz</strong>
+        <small data-i18n="status.sampleRate">Abtastrate</small><strong id="sampleRate">0,0 Hz</strong>
       </article>
       <article class="status-card">
-        <small>Pakete</small><strong id="packetCount">0</strong>
+        <small data-i18n="status.packets">Pakete</small><strong id="packetCount">0</strong>
       </article>
     </section>
 
     <section class="panel connection-panel">
       <div class="panel-heading">
         <div>
-          <p class="eyebrow">VERBINDUNG</p>
-          <h2>DCS-v2-Ausgabe</h2>
+          <p class="eyebrow" data-i18n="connection.eyebrow">VERBINDUNG</p>
+          <h2 data-i18n="connection.title">DCS-v2-Ausgabe</h2>
         </div>
         <div class="header-actions">
-          <button id="openFolderButton" class="text-button" type="button">Konfigurationsordner</button>
-          <span id="saveStatus" class="save-status">Gespeichert</span>
+          <button id="openFolderButton" class="text-button" type="button" data-i18n="connection.folder">Konfigurationsordner</button>
+          <span id="saveStatus" class="save-status" data-i18n="connection.saved">Gespeichert</span>
         </div>
       </div>
       <div class="settings-grid">
-        <label><span>Paketname</span><input id="nameInput" maxlength="100"></label>
-        <label><span>DRSM Host</span><input id="hostInput" maxlength="255"></label>
-        <label><span>UDP-Port</span><input id="portInput" type="number" min="1" max="65535"></label>
-        <label><span>Abtastung</span>
+        <label><span data-i18n="connection.packetName">Paketname</span><input id="nameInput" maxlength="100"></label>
+        <label><span data-i18n="connection.host">DRSM Host</span><input id="hostInput" maxlength="255"></label>
+        <label><span data-i18n="connection.port">UDP-Port</span><input id="portInput" type="number" min="1" max="65535"></label>
+        <label><span data-i18n="connection.sampling">Abtastung</span>
           <select id="periodSelect">
-            <option value="visual">Visual Frame</option>
-            <option value="sim">Sim Frame</option>
+            <option value="visual" data-i18n="connection.visualFrame">Visual Frame</option>
+            <option value="sim" data-i18n="connection.simFrame">Sim Frame</option>
           </select>
         </label>
       </div>
-      <p class="hint">DRSM als Quelle <strong>DCS World</strong> mit Port 4135 verwenden. Änderungen an Quellen oder Abtastung verbinden SimConnect automatisch neu.</p>
+      <p class="hint" data-i18n="connection.hint">DRSM als Quelle DCS World mit Port 4135 verwenden. Änderungen an Quellen oder Abtastung verbinden SimConnect automatisch neu.</p>
       <div class="action-row">
-        <button id="startButton" class="primary-button" type="button">Bridge starten</button>
-        <button id="stopButton" class="secondary-button" type="button">Stoppen</button>
-        <button id="recordButton" class="secondary-button record-button" type="button">● CSV aufnehmen</button>
-        <button id="stopRecordButton" class="secondary-button" type="button">CSV stoppen</button>
-        <button id="disableAllButton" class="secondary-button" type="button">Alle Kanäle aus</button>
-        <button id="resetButton" class="text-button danger" type="button">Standardzuordnung wiederherstellen</button>
+        <button id="startButton" class="primary-button" type="button" data-i18n="connection.start">Bridge starten</button>
+        <button id="stopButton" class="secondary-button" type="button" data-i18n="connection.stop">Stoppen</button>
+        <button id="recordButton" class="secondary-button record-button" type="button" data-i18n="connection.record">● CSV aufnehmen</button>
+        <button id="stopRecordButton" class="secondary-button" type="button" data-i18n="connection.stopRecord">CSV stoppen</button>
+        <button id="disableAllButton" class="secondary-button" type="button" data-i18n="connection.disableAll">Alle Kanäle aus</button>
+        <button id="resetButton" class="text-button danger" type="button" data-i18n="connection.reset">Standardzuordnung wiederherstellen</button>
       </div>
       <p id="runtimeDetail" class="runtime-detail">Bridge ist nicht gestartet.</p>
       <p id="recordingDetail" class="recording-detail">CSV-Aufzeichnung ist aus.</p>
@@ -98,47 +104,73 @@
     <section class="panel dynamics-panel">
       <div class="panel-heading">
         <div>
-          <p class="eyebrow">DCS-BESCHLEUNIGUNG</p>
-          <h2>Gravity Reference & Turbulenzmischer</h2>
+          <p class="eyebrow" data-i18n="dynamics.eyebrow">DCS-BESCHLEUNIGUNG</p>
+          <h2 data-i18n="dynamics.title">Gravity Reference & Turbulenzmischer</h2>
         </div>
       </div>
       <div class="processor-grid">
         <article class="processor-card">
           <div class="processor-title-row">
             <div>
-              <strong>DCS-Gravitationsvektor</strong>
-              <small>Ergänzt die fehlende Ruhelast lageabhängig</small>
+              <strong data-i18n="gravity.title">DCS-Gravitationsvektor</strong>
+              <small data-i18n="gravity.subtitle">Ergänzt die fehlende Ruhelast lageabhängig</small>
             </div>
-            <label class="switch-label"><input id="gravityEnabledInput" type="checkbox"><span>Aktiv</span></label>
+            <label class="switch-label"><input id="gravityEnabledInput" type="checkbox"><span data-i18n="gravity.active">Aktiv</span></label>
           </div>
-          <label class="compact-setting"><span>Stärke (g)</span><input id="gravityStrengthInput" type="number" min="0" max="2" step="0.05"></label>
+          <label class="compact-setting"><span data-i18n="gravity.strength">Stärke (g)</span><input id="gravityStrengthInput" type="number" min="0" max="2" step="0.05"></label>
           <div class="processor-live-row">
-            <span><small>DCS Gravity [lateral, longitudinal, vertical]</small><output id="gravityVectorLive">[0, 0, −1]</output></span>
+            <span><small data-i18n="gravity.live">DCS Gravity [quer, längs, vertikal]</small><output id="gravityVectorLive">[0, 0, −1]</output></span>
           </div>
-          <p class="hint">Die A2A-FM-Werte sind um 0 zentriert. DCS liefert bei waagerechter Ruhelage einen 1-g-Vektor mit <strong>−1 g vertikal</strong>; Pitch und Roll drehen diesen Vektor mit.</p>
+          <p class="hint" data-i18n="gravity.hint">Die A2A-FM-Werte sind um 0 zentriert. DCS liefert bei waagerechter Ruhelage einen 1-g-Vektor mit −1 g vertikal; Pitch und Roll drehen diesen Vektor mit.</p>
         </article>
 
         <article class="processor-card turbulence-card">
           <div class="processor-title-row">
             <div>
-              <strong>Turbulenzmischer</strong>
-              <small>Mischt nur schnelle Stöße zusätzlich in Heave</small>
+              <strong data-i18n="turbulence.title">Turbulenzmischer</strong>
+              <small data-i18n="turbulence.subtitle">Mischt nur schnelle Stöße zusätzlich in Heave</small>
             </div>
-            <label class="switch-label"><input id="turbulenceEnabledInput" type="checkbox"><span>Aktiv</span></label>
+            <label class="switch-label" data-i18n-title="tooltip.turbulenceEnabled"><input id="turbulenceEnabledInput" type="checkbox"><span data-i18n="turbulence.active">Aktiv</span></label>
+          </div>
+          <div class="turbulence-presets" aria-label="Turbulenz-Presets">
+            <span class="preset-caption" data-i18n="turbulence.presets">Presets</span>
+            <button type="button" data-turbulence-preset="light" title="Leicht: dezente Luftunruhe, begrenzt auf maximal 0,08 g zusätzliche Heave-Bewegung.">Leicht</button>
+            <button type="button" data-turbulence-preset="medium" title="Mittel: ausgewogener Ausgangspunkt und bisherige Standardeinstellung.">Mittel</button>
+            <button type="button" data-turbulence-preset="strong" title="Stark: deutlichere und etwas länger anhaltende Turbulenzstöße.">Stark</button>
+            <button class="extreme" type="button" data-turbulence-preset="extreme" title="Extrem: sehr breite, starke Verstärkung nur für kurze Tests; kann DRSM- oder Plattformlimits erreichen.">Extrem</button>
+            <span id="turbulencePresetState" class="preset-state" data-i18n="turbulence.custom">Benutzerdefiniert</span>
           </div>
           <div class="turbulence-settings">
-            <label class="wide-setting"><span>Signalquelle</span><select id="turbulenceSourceSelect"></select></label>
-            <label><span>Mischung (%)</span><input id="turbulenceMixInput" type="number" min="0" max="100" step="5"></label>
-            <label><span>Band-Verstärkung</span><input id="turbulenceGainInput" type="number" min="0" max="8" step="0.1"></label>
-            <label><span>Untergrenze (Hz)</span><input id="turbulenceLowCutInput" type="number" min="0.05" max="10" step="0.05"></label>
-            <label><span>Obergrenze (Hz)</span><input id="turbulenceHighCutInput" type="number" min="0.1" max="20" step="0.1"></label>
-            <label><span>Soft-Limit extra (g)</span><input id="turbulenceMaxExtraInput" type="number" min="0.01" max="2" step="0.01"></label>
+            <label class="wide-setting">
+              <span class="setting-label"><span data-i18n="turbulence.source">Signalquelle</span> <span class="help-tip" tabindex="0" role="note" data-i18n-tooltip="tooltip.turbulenceSource">?</span></span>
+              <select id="turbulenceSourceSelect" title="Quelle für die Erkennung schneller vertikaler Turbulenzbewegungen"></select>
+            </label>
+            <label>
+              <span class="setting-label"><span data-i18n="turbulence.mix">Mischung (%)</span> <span class="help-tip" tabindex="0" role="note" data-i18n-tooltip="tooltip.turbulenceMix">?</span></span>
+              <input id="turbulenceMixInput" type="number" min="0" max="100" step="5" data-i18n-title="tooltip.turbulenceMix">
+            </label>
+            <label>
+              <span class="setting-label"><span data-i18n="turbulence.gain">Band-Verstärkung</span> <span class="help-tip" tabindex="0" role="note" data-i18n-tooltip="tooltip.turbulenceGain">?</span></span>
+              <input id="turbulenceGainInput" type="number" min="0" max="8" step="0.1" data-i18n-title="tooltip.turbulenceGain">
+            </label>
+            <label>
+              <span class="setting-label"><span data-i18n="turbulence.lowCut">Untergrenze (Hz)</span> <span class="help-tip" tabindex="0" role="note" data-i18n-tooltip="tooltip.turbulenceLow">?</span></span>
+              <input id="turbulenceLowCutInput" type="number" min="0.05" max="10" step="0.05" data-i18n-title="tooltip.turbulenceLow">
+            </label>
+            <label>
+              <span class="setting-label"><span data-i18n="turbulence.highCut">Obergrenze (Hz)</span> <span class="help-tip" tabindex="0" role="note" data-i18n-tooltip="tooltip.turbulenceHigh">?</span></span>
+              <input id="turbulenceHighCutInput" type="number" min="0.1" max="20" step="0.1" data-i18n-title="tooltip.turbulenceHigh">
+            </label>
+            <label>
+              <span class="setting-label"><span data-i18n="turbulence.softLimit">Soft-Limit extra (g)</span> <span class="help-tip" tabindex="0" role="note" data-i18n-tooltip="tooltip.turbulenceLimit">?</span></span>
+              <input id="turbulenceMaxExtraInput" type="number" min="0.01" max="2" step="0.01" data-i18n-title="tooltip.turbulenceLimit">
+            </label>
           </div>
           <div class="turbulence-live-grid">
-            <span><small>Quelle</small><output id="turbulenceSourceLive">—</output></span>
-            <span><small>Bandpass</small><output id="turbulenceBandLive">—</output></span>
-            <span><small>Extra Heave</small><output id="turbulenceExtraLive">—</output></span>
-            <span><small>Vertikal gesamt</small><output id="turbulenceFinalLive">—</output></span>
+            <span><small data-i18n="turbulence.liveSource">Quelle</small><output id="turbulenceSourceLive">—</output></span>
+            <span><small data-i18n="turbulence.liveBand">Bandpass</small><output id="turbulenceBandLive">—</output></span>
+            <span><small data-i18n="turbulence.liveExtra">Extra Heave</small><output id="turbulenceExtraLive">—</output></span>
+            <span><small data-i18n="turbulence.liveTotal">Vertikal gesamt</small><output id="turbulenceFinalLive">—</output></span>
           </div>
           <p id="turbulenceStatus" class="hint">Aus: Die A2A-Beschleunigung wird unverändert weitergegeben.</p>
         </article>
@@ -148,22 +180,22 @@
     <section class="panel mapping-panel">
       <div class="panel-heading mapping-heading">
         <div>
-          <p class="eyebrow">KANÄLE</p>
-          <h2>SimConnect-Eingang → DCS-Ausgang</h2>
+          <p class="eyebrow" data-i18n="mapping.eyebrow">KANÄLE</p>
+          <h2 data-i18n="mapping.title">SimConnect-Eingang → DCS-Ausgang</h2>
         </div>
         <div class="mapping-tools">
           <button id="expertToggleButton" class="mode-button" type="button" aria-pressed="false">
-            <span>Expert</span><small>aus</small>
+            <span data-i18n="mapping.expert">Expert</span><small data-i18n="mapping.off">aus</small>
           </button>
           <button id="rawToggleButton" class="mode-button raw-mode-button" type="button" aria-pressed="false">
-            <span>Raw</span><small>aus</small>
+            <span data-i18n="mapping.raw">Raw</span><small data-i18n="mapping.off">aus</small>
           </button>
-          <label class="filter-label"><span>Ausgänge filtern</span><input id="filterInput" placeholder="z. B. RPM, vertical"></label>
+          <label class="filter-label"><span data-i18n="mapping.filter">Ausgänge filtern</span><input id="filterInput" data-i18n-placeholder="mapping.filterBasic" placeholder="z. B. RPM, vertical"></label>
         </div>
       </div>
       <p id="viewHint" class="mode-hint">Basisansicht: nur die für den Comanche-Test relevanten Motion- und Motorkanäle.</p>
       <div class="legend">
-        <span>Ein</span><span>Eingangsquelle</span><span>Inv.</span><span class="expert-only">Format</span><span class="expert-only">Rechenart</span><span class="expert-only">Faktor</span><span class="expert-only">Offset</span><span>Eingang live</span><span>DCS-Ausgang</span><span>Ausgabe live</span>
+        <span data-i18n="mapping.enabled">Ein</span><span data-i18n="mapping.source">Eingangsquelle</span><span data-i18n="mapping.invert">Inv.</span><span class="expert-only" data-i18n="mapping.format">Format</span><span class="expert-only" data-i18n="mapping.operation">Rechenart</span><span class="expert-only" data-i18n="mapping.scale">Faktor</span><span class="expert-only" data-i18n="mapping.offset">Offset</span><span data-i18n="mapping.inputLive">Eingang live</span><span data-i18n="mapping.output">DCS-Ausgang</span><span data-i18n="mapping.outputLive">Ausgabe live</span>
       </div>
       <div id="mappingGroups" class="mapping-groups"></div>
     </section>
@@ -171,26 +203,26 @@
     <section id="customSourcesPanel" class="panel sources-panel expert-only-section">
       <div class="panel-heading">
         <div>
-          <p class="eyebrow">EIGENE QUELLEN</p>
-          <h2>LVars hinzufügen</h2>
+          <p class="eyebrow" data-i18n="custom.eyebrow">EIGENE QUELLEN</p>
+          <h2 data-i18n="custom.title">LVars hinzufügen</h2>
         </div>
       </div>
       <form id="customSourceForm" class="source-form">
-        <label><span>Anzeigename</span><input id="customLabelInput" required maxlength="100" placeholder="A2A Turbulence"></label>
-        <label><span>SimConnect-/LVar-Name</span><input id="customVarInput" required maxlength="180" placeholder="L:My_Custom_Value"></label>
-        <label><span>Physikalisches Format</span><select id="customUnitSelect"></select></label>
-        <button class="primary-button add-button" type="submit">+ Hinzufügen</button>
+        <label><span data-i18n="custom.name">Anzeigename</span><input id="customLabelInput" required maxlength="100" placeholder="A2A Turbulence"></label>
+        <label><span data-i18n="custom.variable">SimConnect-/LVar-Name</span><input id="customVarInput" required maxlength="180" placeholder="L:My_Custom_Value"></label>
+        <label><span data-i18n="custom.format">Physikalisches Format</span><select id="customUnitSelect"></select></label>
+        <button class="primary-button add-button" type="submit" data-i18n="custom.add">+ Hinzufügen</button>
       </form>
-      <p class="hint">Eigene LVars werden über SimConnect als <code>number</code> gelesen. Das gewählte Format beschreibt ihre tatsächliche physikalische Bedeutung für die Umrechnung.</p>
+      <p class="hint" data-i18n="custom.hint">Eigene LVars werden über SimConnect als number gelesen. Das gewählte Format beschreibt ihre tatsächliche physikalische Bedeutung für die Umrechnung.</p>
       <div id="customSourceList" class="custom-source-list"></div>
     </section>
 
     <details id="packetPanel" class="panel packet-panel expert-only-section">
       <summary>
-        <span>Letztes DCS-v2-Paket</span>
-        <span id="packetSummary" class="summary-status">Noch keine Telemetrie</span>
+        <span data-i18n="packet.title">Letztes DCS-v2-Paket</span>
+        <span id="packetSummary" class="summary-status" data-i18n="packet.none">Noch keine Telemetrie</span>
       </summary>
-      <pre id="packetPreview">Bridge starten, um die JSON-Ausgabe zu sehen.</pre>
+      <pre id="packetPreview" data-i18n="packet.waiting">Bridge starten, um die JSON-Ausgabe zu sehen.</pre>
     </details>
   </main>
   <script src="./renderer.js"></script>
