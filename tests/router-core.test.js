@@ -2,8 +2,16 @@
 
 const assert = require('node:assert/strict');
 const test = require('node:test');
-const { BUILTIN_SOURCES, OUTPUTS, buildDefaultConfig } = require('../lib/catalog');
-const { RouterCore, normalizeConfig, operationCompatible } = require('../lib/router-core');
+const {
+  BUILTIN_SOURCES,
+  OUTPUTS,
+  SAFE_SOURCE_IDS,
+  UNIT_DEFINITIONS,
+  buildDefaultConfig,
+  compatibleOperationIds,
+  safeCompatibleOperationIds
+} = require('../lib/catalog');
+const { RouterCore, normalizeConfig, operationCompatible, requiredSources } = require('../lib/router-core');
 
 function close(actual, expected, epsilon = 1e-9) {
   assert(Math.abs(actual - expected) <= epsilon, `expected ${expected}, got ${actual}`);
@@ -178,4 +186,69 @@ test('legacy full default is migrated to the reduced basic output set', () => {
   assert.equal(normalized.channels['acc.0'].enabled, true);
   assert.equal(normalized.channels['vel.0'].enabled, false);
   assert.equal(normalized.channels.gear_left.enabled, false);
+});
+
+test('only enabled channel sources are required and shared sources are deduplicated', () => {
+  const config = buildDefaultConfig();
+  const defaults = requiredSources(config).map((entry) => entry.id);
+  assert.equal(defaults.length, 13);
+  assert.equal(defaults.includes('a2a.engine.rpm'), true);
+  assert.equal(defaults.includes('std.gear.left'), false);
+  assert.equal(defaults.includes('std.wind.x'), false);
+
+  config.channels['acc.0'].sourceId = 'std.acc.body.x';
+  config.channels['acc.1'].enabled = false;
+  const changed = requiredSources(config).map((entry) => entry.id);
+  assert.equal(changed.includes('std.acc.body.x'), true);
+  assert.equal(changed.includes('a2a.acc.x'), false);
+  assert.equal(changed.includes('a2a.acc.z'), false);
+  assert.equal(changed.filter((id) => id === 'a2a.engine.rpm').length, 1);
+});
+
+test('safe expert source catalog is semantic and mathematically reachable', () => {
+  const sourceById = new Map(BUILTIN_SOURCES.map((source) => [source.id, source]));
+  const outputById = new Map(OUTPUTS.map((output) => [output.id, output]));
+  for (const [outputId, sourceIds] of Object.entries(SAFE_SOURCE_IDS)) {
+    const output = outputById.get(outputId);
+    assert(output, `unknown output ${outputId}`);
+    for (const sourceId of sourceIds) {
+      const source = sourceById.get(sourceId);
+      assert(source, `${outputId}: unknown source ${sourceId}`);
+      const inputFamily = UNIT_DEFINITIONS[source.inputUnit].family;
+      const outputFamily = UNIT_DEFINITIONS[output.targetUnit].family;
+      assert(compatibleOperationIds(inputFamily, outputFamily).length > 0, `${outputId}: ${sourceId}`);
+    }
+  }
+  assert.equal(SAFE_SOURCE_IDS['acc.0'].includes('std.velocity.world.x'), false);
+  assert.deepEqual(compatibleOperationIds('velocity', 'acceleration'), ['differentiate']);
+  assert.deepEqual(compatibleOperationIds('scalar', 'acceleration'), []);
+  assert.deepEqual(safeCompatibleOperationIds('scalar', 'rpm'), []);
+  assert.deepEqual(safeCompatibleOperationIds('boolean', 'ratio'), ['direct']);
+});
+
+test('safe runtime blocks stored Raw mappings until Raw mode is enabled', () => {
+  const config = buildDefaultConfig();
+  for (const channel of Object.values(config.channels)) channel.enabled = false;
+  config.expertMode = true;
+  config.channels.rpm_left = {
+    enabled: true,
+    sourceId: 'std.mach',
+    inputUnit: 'number',
+    operation: 'direct',
+    scale: 1,
+    offset: 0
+  };
+
+  const safeCore = new RouterCore(config);
+  const safeResult = safeCore.update({ 'std.mach': 0.75 }, 0);
+  assert.equal(safeResult.packet.rpm_left, undefined);
+  assert.match(safeResult.errors.rpm_left, /Raw-Modus/);
+  assert.equal(requiredSources(safeCore.config).some((source) => source.id === 'std.mach'), false);
+
+  config.unsafeMode = true;
+  const rawCore = new RouterCore(config);
+  const rawResult = rawCore.update({ 'std.mach': 0.75 }, 0);
+  assert.equal(rawResult.packet.rpm_left, 0.75);
+  assert.equal(rawResult.errors.rpm_left, undefined);
+  assert.equal(requiredSources(rawCore.config).some((source) => source.id === 'std.mach'), true);
 });

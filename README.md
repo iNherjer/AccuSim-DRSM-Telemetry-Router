@@ -8,7 +8,7 @@ Flight Simulator, and **DR Sim Manager (DRSM)**.
 > Accu-Sim flight-model telemetry usable in DRSM until DRSM provides a native
 > integration for these aircraft-specific values.
 
-![AccuSim DRSM Telemetry Router in Basic mode](docs/images/telemetry-router-basic.png)
+![AccuSim DRSM Telemetry Router offering an update in Basic mode](docs/images/telemetry-router-basic.png)
 
 ## Why this tool exists
 
@@ -52,10 +52,17 @@ Telemetry Router ── mapping / unit conversion ──► DCS v2 JSON over UDP
 - Live raw input and converted DCS output values
 - Per-channel enable/disable controls
 - Automatic conversion between compatible physical units
+- Safe Expert mode filters sources, units, and operations by output semantics
 - Scale, offset, axis inversion, integration, and differentiation in Expert mode
 - Full documented numeric DCS v2 output catalog in Expert mode
+- Explicit red Raw mode for deliberately unrestricted experimental mappings
 - User-defined LVars with add/remove controls
+- SimConnect subscribes only to sources selected by enabled output channels
 - Automatically reconnecting SimConnect client
+- Renderer updates freeze while the window is hidden or minimized; telemetry continues
+- Installed app checks for updates at startup and offers install or per-version skip
+- Download progress and an explicit restart action that stops the bridge safely
+- Small web bootstrapper plus an optional manual-update portable executable
 - Configurable UDP host, port, packet name, and sampling period
 - Atomic persistent JSON configuration
 
@@ -82,10 +89,10 @@ telemetry gap or configuration change to limit runaway drift.
 ## Quick start
 
 1. Download the latest
-   [Windows executable](https://github.com/iNherjer/AccuSim-DRSM-Telemetry-Router/releases/latest/download/AccuSim-DRSM-Telemetry-Router.exe).
+   [Windows setup bootstrapper](https://github.com/iNherjer/AccuSim-DRSM-Telemetry-Router/releases/latest/download/AccuSim-DRSM-Telemetry-Router-Setup.exe).
 2. Start Microsoft Flight Simulator and load the A2A Comanche.
 3. In DRSM, select **DCS World** as the telemetry source and use UDP port `4135`.
-4. Start `AccuSim-DRSM-Telemetry-Router.exe`.
+4. Start the installed **AccuSim DRSM Telemetry Router**.
 5. Click **Bridge starten**.
 
 Do not run another DCS-format telemetry sender to the same DRSM endpoint at the
@@ -97,10 +104,19 @@ Basic mode intentionally stays small. It shows linear acceleration, angular
 velocity, pitch/roll/yaw, IAS, AGL, stall warning, and engine/propeller RPM.
 Only appropriate standard and A2A sources are offered for each output.
 
-Expert mode exposes every documented numeric DCS v2 field, every built-in or
-custom source, input units, mathematical operations, scale, and offset. Optional
-fields such as individual gear positions, control surfaces, weapons, and damage
-remain available there without cluttering the normal Comanche workflow.
+Expert mode exposes every documented numeric DCS v2 field, compatible built-in
+and custom sources, input units, mathematical operations, scale, and offset.
+The source list is also filtered semantically: an acceleration output offers
+acceleration sources, while an RPM output offers engine/propeller RPM sources.
+Optional fields such as individual gear positions, control surfaces, weapons,
+and damage remain available there without cluttering the normal Comanche
+workflow.
+
+Input units and operations are constrained to combinations that can actually
+produce the selected output. For example, velocity may be differentiated into
+acceleration, but `mph` cannot be relabelled as G or RPM. Existing or deliberate
+experimental mappings can still be edited in the clearly marked red **Raw**
+mode. Runtime validation remains active, so incompatible channels are not sent.
 
 ## Configuration
 
@@ -111,7 +127,37 @@ Documents\VFR Multitool\AccuSim DRSM Router\bridge-config.json
 ```
 
 Closing the window hides the app in the Windows tray. Use the tray menu to stop
-the bridge or quit the application completely.
+the bridge or quit the application completely. While hidden or minimized, the
+Chromium renderer receives no live telemetry snapshots. SimConnect processing
+and UDP output continue normally, and the UI receives one current snapshot when
+it is shown again.
+
+The default profile maps 14 output channels to 13 unique SimConnect sources.
+Shared inputs such as `L:Eng1_RPM` are subscribed only once. Changing scale or
+offset does not reconnect SimConnect; changing an enabled channel's source or
+sampling period rebuilds the compact subscription automatically.
+
+## Updates and portable mode
+
+The installed Windows app checks the latest public GitHub release at startup.
+When a newer version is available, it offers **Install update** or **Skip this
+version**. A skipped version stays suppressed on automatic startup checks; a
+manual check from the app header or tray can offer it again. Telemetry continues
+while the update downloads. The bridge is stopped only after the user confirms
+the restart, and a downloaded update is also installed on the next real app
+exit.
+
+`AccuSim-DRSM-Telemetry-Router.exe` remains available as a portable fallback.
+Portable mode deliberately does not self-update. It identifies itself in the UI
+and requires downloading a newer portable executable manually.
+
+Every release used by the updater must publish these files from the same build:
+
+- `AccuSim-DRSM-Telemetry-Router-Setup.exe`
+- `accusim-drsm-telemetry-router-<version>-x64.nsis.7z`
+- `latest.yml`
+
+Draft releases are not part of the update channel.
 
 ## Development
 

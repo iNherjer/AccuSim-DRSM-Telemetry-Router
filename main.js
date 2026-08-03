@@ -11,11 +11,23 @@ const {
   shell,
   Tray
 } = require('electron');
+const { autoUpdater } = require('electron-updater');
 const { BridgeConfigStore } = require('./lib/config-store');
-const { BUILTIN_SOURCES, OPERATIONS, OUTPUTS, UNIT_DEFINITIONS } = require('./lib/catalog');
+const {
+  BUILTIN_SOURCES,
+  OPERATION_COMPATIBILITY,
+  OPERATIONS,
+  OUTPUTS,
+  SAFE_OPERATION_COMPATIBILITY,
+  SAFE_SOURCE_IDS,
+  UNIT_DEFINITIONS
+} = require('./lib/catalog');
 const { allSources } = require('./lib/router-core');
 const { TelemetryRuntime } = require('./lib/telemetry-runtime');
+const { UpdateController } = require('./lib/update-controller');
+const { shouldBroadcastToWindow } = require('./lib/window-visibility');
 
+if (process.platform === 'win32') app.setAppUserModelId('de.vfrmultitool.accusim-drsm-router');
 const singleInstanceLock = app.requestSingleInstanceLock();
 
 let mainWindow = null;
@@ -23,12 +35,13 @@ let tray = null;
 let store = null;
 let config = null;
 let runtime = null;
+let updateController = null;
 let configRevision = 1;
 
 function iconPath() {
   return app.isPackaged
     ? path.join(process.resourcesPath, 'assets', 'icon.png')
-    : path.resolve(__dirname, '..', '..', 'icon-192.png');
+    : path.resolve(__dirname, 'assets', 'icon.png');
 }
 
 function publicCatalog() {
@@ -37,7 +50,10 @@ function publicCatalog() {
     sources: allSources(config),
     outputs: OUTPUTS,
     units: UNIT_DEFINITIONS,
-    operations: OPERATIONS
+    operations: OPERATIONS,
+    operationCompatibility: OPERATION_COMPATIBILITY,
+    safeOperationCompatibility: SAFE_OPERATION_COMPATIBILITY,
+    safeSourceIds: SAFE_SOURCE_IDS
   };
 }
 
@@ -48,19 +64,22 @@ function currentState() {
     config,
     catalog: publicCatalog(),
     runtime: runtime?.publicState() || null,
+    update: updateController?.publicState() || null,
     dataDirectory: store?.dataDirectory || ''
   };
 }
 
-function broadcastState() {
-  if (!mainWindow || mainWindow.isDestroyed()) return;
+function broadcastState(force = false) {
+  if (!shouldBroadcastToWindow(mainWindow, force)) return;
   mainWindow.webContents.send('state:changed', currentState());
 }
 
 function showWindow() {
   if (!mainWindow || mainWindow.isDestroyed()) return;
+  if (mainWindow.isMinimized()) mainWindow.restore();
   mainWindow.show();
   mainWindow.focus();
+  broadcastState(true);
 }
 
 function createWindow() {
@@ -77,7 +96,8 @@ function createWindow() {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
       nodeIntegration: false,
-      sandbox: true
+      sandbox: true,
+      backgroundThrottling: true
     }
   });
   mainWindow.setMenuBarVisibility(false);
@@ -105,17 +125,32 @@ function createWindow() {
     event.preventDefault();
     mainWindow.hide();
   });
+  mainWindow.on('restore', () => broadcastState(true));
 }
 
-function createTray() {
-  const image = nativeImage.createFromPath(iconPath()).resize({ width: 20, height: 20 });
-  tray = new Tray(image);
-  tray.setToolTip('AccuSim DRSM Telemetry Router');
+function updateTrayMenu() {
+  if (!tray || tray.isDestroyed()) return;
+  const update = updateController?.publicState() || {};
+  const checking = update.phase === 'checking';
+  const busy = ['checking', 'downloading', 'installing'].includes(update.phase);
+  const updateLabel = update.phase === 'ready'
+    ? `Update ${update.version || ''} neu starten & installieren`
+    : (checking ? 'Suche nach Updates …' : 'Nach Updates suchen');
   tray.setContextMenu(Menu.buildFromTemplate([
     { label: 'Router anzeigen', click: showWindow },
     { type: 'separator' },
     { label: 'Bridge starten', click: () => runtime.start() },
     { label: 'Bridge stoppen', click: () => runtime.stop() },
+    { type: 'separator' },
+    {
+      label: updateLabel,
+      enabled: update.supported === true && !busy,
+      click: () => {
+        showWindow();
+        if (update.phase === 'ready') updateController.install();
+        else updateController.check({ manual: true });
+      }
+    },
     { type: 'separator' },
     {
       label: 'Beenden',
@@ -126,6 +161,13 @@ function createTray() {
       }
     }
   ]));
+}
+
+function createTray() {
+  const image = nativeImage.createFromPath(iconPath()).resize({ width: 20, height: 20 });
+  tray = new Tray(image);
+  tray.setToolTip('AccuSim DRSM Telemetry Router');
+  updateTrayMenu();
   tray.on('double-click', showWindow);
 }
 
@@ -133,8 +175,16 @@ function registerIpc() {
   ipcMain.handle('app:get-state', () => currentState());
   ipcMain.handle('router:start', () => runtime.start());
   ipcMain.handle('router:stop', () => runtime.stop());
+  ipcMain.handle('update:check', () => updateController.check({ manual: true }));
+  ipcMain.handle('update:download', () => updateController.download());
+  ipcMain.handle('update:skip', () => updateController.skip());
+  ipcMain.handle('update:install', () => updateController.install());
   ipcMain.handle('config:save', (_event, nextConfig) => {
-    config = store.write(nextConfig);
+    config = store.write({
+      ...nextConfig,
+      // Updater-owned state must not be overwritten by a delayed renderer save.
+      skippedUpdateVersion: config.skippedUpdateVersion
+    });
     configRevision += 1;
     runtime.updateConfig(config);
     broadcastState();
@@ -159,11 +209,49 @@ async function startApplication() {
   store = new BridgeConfigStore({ dataDirectory });
   config = store.read();
   runtime = new TelemetryRuntime(config);
-  runtime.on('state', broadcastState);
+  const portableBuild = Boolean(process.env.PORTABLE_EXECUTABLE_FILE);
+  updateController = new UpdateController({
+    autoUpdater,
+    isPackaged: app.isPackaged && !portableBuild,
+    platform: process.platform,
+    getSkippedVersion: () => config.skippedUpdateVersion,
+    saveSkippedVersion: (version) => {
+      config = store.write({ ...config, skippedUpdateVersion: version });
+      configRevision += 1;
+      runtime.updateConfig(config);
+    },
+    beforeInstall: () => {
+      app.isQuitting = true;
+      runtime.stop();
+    }
+  });
+  runtime.on('state', () => broadcastState());
+  updateController.on('state', (update) => {
+    updateTrayMenu();
+    broadcastState(true);
+    if (update.phase === 'available') showWindow();
+  });
+  const previewUpdate = String(process.env.ACCUSIM_ROUTER_PREVIEW_UPDATE || '').trim();
+  if (previewUpdate) {
+    const phase = ['available', 'downloading', 'ready'].includes(previewUpdate) ? previewUpdate : 'available';
+    updateController.setState({
+      supported: true,
+      phase,
+      version: '1.3.1',
+      percent: phase === 'downloading' ? 46 : (phase === 'ready' ? 100 : 0),
+      message: phase === 'ready'
+        ? 'Update ist geladen und geprüft. Installation beim Neustart oder beim nächsten Beenden.'
+        : (phase === 'downloading' ? 'Update wird geladen … 46 %' : 'Version 1.3.1 ist verfügbar.')
+    });
+  }
   registerIpc();
   createWindow();
   createTray();
   broadcastState();
+  if (updateController.publicState().supported) {
+    const timer = setTimeout(() => updateController.check(), 1200);
+    timer.unref?.();
+  }
 }
 
 if (!singleInstanceLock) {

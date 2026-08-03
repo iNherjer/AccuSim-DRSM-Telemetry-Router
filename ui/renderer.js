@@ -7,7 +7,10 @@ const elements = Object.fromEntries([
   'openFolderButton', 'runtimeDetail', 'filterInput', 'mappingGroups',
   'customSourceForm', 'customLabelInput', 'customVarInput', 'customUnitSelect',
   'customSourceList', 'packetPreview', 'packetSummary', 'expertToggleButton',
-  'viewHint', 'customSourcesPanel', 'packetPanel'
+  'rawToggleButton', 'viewHint', 'customSourcesPanel', 'packetPanel',
+  'updateCheckButton', 'updateBanner', 'updateTitle', 'updateMessage',
+  'updateProgressWrap', 'updateProgress', 'downloadUpdateButton',
+  'skipUpdateButton', 'restartUpdateButton'
 ].map((id) => [id, document.getElementById(id)]));
 
 let state = null;
@@ -53,8 +56,20 @@ function appendSourceOption(parent, source, selectedId, prefix = '') {
   parent.appendChild(option);
 }
 
-function expertSourceOptions(selectedId) {
-  const groups = groupBy(state.catalog.sources, 'group');
+function compatibleOperationIds(inputUnitId, targetUnitId) {
+  const inputFamily = state.catalog.units[inputUnitId]?.family;
+  const outputFamily = state.catalog.units[targetUnitId]?.family;
+  return state.catalog.operationCompatibility?.[inputFamily]?.[outputFamily] || [];
+}
+
+function safeOperationIds(inputUnitId, targetUnitId) {
+  const inputFamily = state.catalog.units[inputUnitId]?.family;
+  const outputFamily = state.catalog.units[targetUnitId]?.family;
+  return state.catalog.safeOperationCompatibility?.[inputFamily]?.[outputFamily] || [];
+}
+
+function groupedSourceOptions(sources, selectedId) {
+  const groups = groupBy(sources, 'group');
   const fragment = document.createDocumentFragment();
   const empty = document.createElement('option');
   empty.value = '';
@@ -67,6 +82,28 @@ function expertSourceOptions(selectedId) {
       appendSourceOption(optgroup, source, selectedId);
     }
     fragment.appendChild(optgroup);
+  }
+  return fragment;
+}
+
+function expertSourceOptions(output, selectedId) {
+  if (draftConfig.unsafeMode) return groupedSourceOptions(state.catalog.sources, selectedId);
+  const safeBuiltinIds = new Set(state.catalog.safeSourceIds?.[output.id] || []);
+  const sources = state.catalog.sources.filter((source) => {
+    const isCustom = source.group === 'Eigene LVars' || source.id.startsWith('custom.');
+    return (isCustom || safeBuiltinIds.has(source.id)) &&
+      safeOperationIds(source.inputUnit, output.targetUnit).length > 0;
+  });
+  const fragment = groupedSourceOptions(sources, selectedId);
+  const allowedIds = new Set(sources.map((source) => source.id));
+  if (selectedId && !allowedIds.has(selectedId)) {
+    const selectedSource = state.catalog.sources.find((entry) => entry.id === selectedId);
+    if (selectedSource) {
+      const group = document.createElement('optgroup');
+      group.label = 'Aktuelle Raw-Zuordnung';
+      appendSourceOption(group, selectedSource, selectedId);
+      fragment.appendChild(group);
+    }
   }
   return fragment;
 }
@@ -95,32 +132,60 @@ function simpleSourceOptions(output, selectedId) {
 
 function sourceOptions(output, selectedId) {
   return draftConfig.expertMode
-    ? expertSourceOptions(selectedId)
+    ? expertSourceOptions(output, selectedId)
     : simpleSourceOptions(output, selectedId);
 }
 
-function unitOptions(selectedId) {
+function unitOptions(selectedId, allowedFamily = '') {
   const fragment = document.createDocumentFragment();
   for (const [id, definition] of Object.entries(state.catalog.units)) {
+    if (allowedFamily && definition.family !== allowedFamily) continue;
     const option = document.createElement('option');
     option.value = id;
     option.textContent = definition.label;
     option.selected = id === selectedId;
     fragment.appendChild(option);
   }
+  if (selectedId && allowedFamily && state.catalog.units[selectedId]?.family !== allowedFamily) {
+    const option = document.createElement('option');
+    option.value = selectedId;
+    option.textContent = `${state.catalog.units[selectedId]?.label || selectedId} · Raw`;
+    option.selected = true;
+    fragment.appendChild(option);
+  }
   return fragment;
 }
 
-function operationOptions(selectedId) {
+function operationOptions(selectedId, allowedIds = null) {
   const fragment = document.createDocumentFragment();
   for (const operation of state.catalog.operations) {
+    if (allowedIds && !allowedIds.includes(operation.id)) continue;
     const option = document.createElement('option');
     option.value = operation.id;
     option.textContent = operation.label;
     option.selected = operation.id === selectedId;
     fragment.appendChild(option);
   }
+  if (selectedId && allowedIds && !allowedIds.includes(selectedId)) {
+    const operation = state.catalog.operations.find((entry) => entry.id === selectedId);
+    const option = document.createElement('option');
+    option.value = selectedId;
+    option.textContent = `${operation?.label || selectedId} · nicht kompatibel`;
+    option.selected = true;
+    fragment.appendChild(option);
+  }
   return fragment;
+}
+
+function mappingUnitOptions(output, source, selectedId) {
+  if (!draftConfig.expertMode || draftConfig.unsafeMode) return unitOptions(selectedId);
+  const family = state.catalog.units[source?.inputUnit]?.family || state.catalog.units[output.targetUnit]?.family;
+  return unitOptions(selectedId, family);
+}
+
+function mappingOperationOptions(output, inputUnitId, selectedId) {
+  if (!draftConfig.expertMode || draftConfig.unsafeMode) return operationOptions(selectedId);
+  return operationOptions(selectedId, safeOperationIds(inputUnitId, output.targetUnit));
 }
 
 function updateChannel(outputId, patch) {
@@ -152,25 +217,44 @@ function makeMappingRow(output) {
   sourceSelect.addEventListener('change', () => {
     const selectedSource = state.catalog.sources.find((entry) => entry.id === sourceSelect.value);
     const simpleRule = output.simpleSources?.find((entry) => entry.sourceId === sourceSelect.value);
-    unitSelect.value = selectedSource?.inputUnit || unitSelect.value;
-    if (!draftConfig.expertMode && simpleRule?.operation) operationSelect.value = simpleRule.operation;
+    const nextInputUnit = selectedSource?.inputUnit || unitSelect.value;
+    const compatibleOperations = safeOperationIds(nextInputUnit, output.targetUnit);
+    let nextOperation = operationSelect.value;
+    if (!draftConfig.expertMode && simpleRule?.operation) nextOperation = simpleRule.operation;
+    if (draftConfig.expertMode && !draftConfig.unsafeMode && !compatibleOperations.includes(nextOperation)) {
+      nextOperation = compatibleOperations[0] || nextOperation;
+    }
+    unitSelect.replaceChildren(mappingUnitOptions(output, selectedSource, nextInputUnit));
+    unitSelect.value = nextInputUnit;
+    operationSelect.replaceChildren(mappingOperationOptions(output, nextInputUnit, nextOperation));
+    operationSelect.value = nextOperation;
     sourceSelect.title = sourceSelect.selectedOptions[0]?.textContent || '';
     updateChannel(output.id, {
       sourceId: sourceSelect.value,
-      inputUnit: unitSelect.value,
-      operation: operationSelect.value
+      inputUnit: nextInputUnit,
+      operation: nextOperation
     });
   });
 
+  const selectedSource = state.catalog.sources.find((entry) => entry.id === channel.sourceId);
   const unitSelect = document.createElement('select');
   unitSelect.className = 'unit-select expert-only';
-  unitSelect.appendChild(unitOptions(channel.inputUnit));
-  unitSelect.addEventListener('change', () => updateChannel(output.id, { inputUnit: unitSelect.value }));
+  unitSelect.appendChild(mappingUnitOptions(output, selectedSource, channel.inputUnit));
 
   const operationSelect = document.createElement('select');
   operationSelect.className = 'operation-select expert-only';
-  operationSelect.appendChild(operationOptions(channel.operation));
+  operationSelect.appendChild(mappingOperationOptions(output, channel.inputUnit, channel.operation));
   operationSelect.addEventListener('change', () => updateChannel(output.id, { operation: operationSelect.value }));
+  unitSelect.addEventListener('change', () => {
+    const compatibleOperations = safeOperationIds(unitSelect.value, output.targetUnit);
+    let nextOperation = operationSelect.value;
+    if (draftConfig.expertMode && !draftConfig.unsafeMode && !compatibleOperations.includes(nextOperation)) {
+      nextOperation = compatibleOperations[0] || nextOperation;
+      operationSelect.replaceChildren(mappingOperationOptions(output, unitSelect.value, nextOperation));
+      operationSelect.value = nextOperation;
+    }
+    updateChannel(output.id, { inputUnit: unitSelect.value, operation: nextOperation });
+  });
 
   const scale = document.createElement('input');
   scale.type = 'number';
@@ -230,12 +314,18 @@ function renderMappings() {
 
 function applyViewMode() {
   const expertMode = draftConfig.expertMode === true;
+  const unsafeMode = expertMode && draftConfig.unsafeMode === true;
   document.body.classList.toggle('expert-mode', expertMode);
+  document.body.classList.toggle('raw-mode', unsafeMode);
   elements.expertToggleButton.setAttribute('aria-pressed', String(expertMode));
   elements.expertToggleButton.querySelector('small').textContent = expertMode ? 'an' : 'aus';
-  elements.viewHint.textContent = expertMode
-    ? 'Expertenansicht: alle DCS-v2-Ausgänge, alle Quellen und sämtliche Umrechnungen.'
-    : 'Basisansicht: Motion-Cues, IAS/AGL, Stall und RPM – jeweils nur mit passender Standard- oder A2A-Quelle.';
+  elements.rawToggleButton.setAttribute('aria-pressed', String(unsafeMode));
+  elements.rawToggleButton.querySelector('small').textContent = unsafeMode ? 'an' : 'aus';
+  elements.viewHint.textContent = unsafeMode
+    ? 'Raw/Unsafe: freie Zuordnung aller Quellen und Einheiten; inkompatible Kanäle werden nicht gesendet.'
+    : (expertMode
+        ? 'Expertenansicht: alle DCS-v2-Ausgänge, aber nur passende Quellen, Einheiten und Rechenarten.'
+        : 'Basisansicht: Motion-Cues, IAS/AGL, Stall und RPM – jeweils nur mit passender Standard- oder A2A-Quelle.');
   elements.filterInput.placeholder = expertMode
     ? 'z. B. RPM, gear, shake'
     : 'z. B. RPM, vertical';
@@ -372,6 +462,38 @@ function renderLive(runtime = {}) {
   }
 }
 
+function renderUpdate(update = {}) {
+  const phase = String(update.phase || 'development');
+  const supported = update.supported === true;
+  const busy = ['checking', 'downloading', 'installing'].includes(phase);
+  const visible = ['available', 'downloading', 'ready', 'installing'].includes(phase);
+  const version = update.version ? ` ${update.version}` : '';
+
+  elements.updateCheckButton.disabled = !supported || busy || phase === 'ready';
+  elements.updateCheckButton.textContent = {
+    checking: 'Prüft …',
+    current: 'Aktuell',
+    available: `Update${version}`,
+    downloading: `${Math.round(Number(update.percent) || 0)} %`,
+    ready: 'Update bereit',
+    installing: 'Installiert …',
+    error: 'Erneut prüfen',
+    skipped: 'Updates'
+  }[phase] || (supported ? 'Updates' : 'Portable · manuell');
+
+  elements.updateBanner.hidden = !visible;
+  elements.updateBanner.className = `update-banner ${phase}`;
+  elements.updateTitle.textContent = phase === 'ready'
+    ? `Update${version} ist bereit`
+    : (phase === 'downloading' ? `Update${version} wird geladen` : `Update${version} verfügbar`);
+  elements.updateMessage.textContent = update.message || '';
+  elements.updateProgressWrap.hidden = !['downloading', 'ready', 'installing'].includes(phase);
+  elements.updateProgress.style.width = `${Math.max(0, Math.min(100, Number(update.percent) || 0))}%`;
+  elements.downloadUpdateButton.hidden = phase !== 'available';
+  elements.skipUpdateButton.hidden = phase !== 'available';
+  elements.restartUpdateButton.hidden = phase !== 'ready';
+}
+
 function render(nextState) {
   state = nextState;
   elements.versionLine.textContent = `Desktop v${state.appVersion || '–'} · DCS-Protokoll v2`;
@@ -381,6 +503,7 @@ function render(nextState) {
     renderConfig();
   }
   renderLive(state.runtime || {});
+  renderUpdate(state.update || {});
 }
 
 function bindConfigInput(element, key, parser = (value) => value) {
@@ -397,11 +520,26 @@ bindConfigInput(elements.periodSelect, 'period');
 
 elements.startButton.addEventListener('click', () => window.accusimRouter.start());
 elements.stopButton.addEventListener('click', () => window.accusimRouter.stop());
+elements.updateCheckButton.addEventListener('click', () => window.accusimRouter.checkForUpdates());
+elements.downloadUpdateButton.addEventListener('click', () => window.accusimRouter.downloadUpdate());
+elements.skipUpdateButton.addEventListener('click', () => window.accusimRouter.skipUpdate());
+elements.restartUpdateButton.addEventListener('click', () => {
+  const version = state?.update?.version || 'die neue Version';
+  if (!window.confirm(`Router für Update ${version} beenden und neu starten? Die Bridge wird dabei gestoppt.`)) return;
+  window.accusimRouter.installUpdate();
+});
 elements.openFolderButton.addEventListener('click', () => window.accusimRouter.openDataFolder());
 elements.filterInput.addEventListener('input', applyFilter);
 elements.expertToggleButton.addEventListener('click', () => {
   if (!draftConfig) return;
   draftConfig.expertMode = !draftConfig.expertMode;
+  applyViewMode();
+  renderMappings();
+  queueSave();
+});
+elements.rawToggleButton.addEventListener('click', () => {
+  if (!draftConfig?.expertMode) return;
+  draftConfig.unsafeMode = !draftConfig.unsafeMode;
   applyViewMode();
   renderMappings();
   queueSave();
