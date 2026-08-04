@@ -200,6 +200,21 @@ test('basic view exposes only relevant standard and A2A sources', () => {
   }
 });
 
+test('A2A shake diagnostics preserve the exact developer-provided LVar names', () => {
+  const expected = {
+    'a2a.shake.airframe': 'L:AirframeShake',
+    'a2a.shake.panel.vertical': 'L:PanelVerticalShake',
+    'a2a.shake.panel.horizontal': 'L:PanelHorizontalShake',
+    'a2a.camera.height': 'L:CameraHeight'
+  };
+  const sourceById = new Map(BUILTIN_SOURCES.map((source) => [source.id, source]));
+  for (const [sourceId, simVar] of Object.entries(expected)) {
+    assert.equal(sourceById.get(sourceId)?.simVar, simVar);
+    assert.equal(sourceById.get(sourceId)?.inputUnit, 'number');
+    assert.equal(DIAGNOSTIC_SOURCE_IDS.includes(sourceId), true);
+  }
+});
+
 test('legacy full default is migrated to the reduced basic output set', () => {
   const legacy = buildDefaultConfig();
   legacy.schemaVersion = 1;

@@ -69,6 +69,8 @@ Telemetry Router ── mapping / unit conversion ──► DCS v2 JSON over UDP
 - DCS-compatible attitude-dependent 1 G gravity reference
 - Optional turbulence mixer with four presets, band-pass, blend, gain, and soft G limit
 - Independently adjustable vertical-wind branch with source, mix, gain, and sign controls
+- Raw CSV diagnostics for A2A `AirframeShake`, vertical/horizontal panel shake,
+  and the experimental `CameraHeight` value
 - Persistent German/English interface, including tray, updater, status and validation messages
 - Contextual tooltips explain every turbulence input, mapping control and DCS output field
 - Bilingual output help describes axes, units and the intended DRSM use of fields such as `acc.1`
@@ -106,6 +108,12 @@ source; `AMBIENT WIND Y` and `RELATIVE WIND VELOCITY BODY Y` are available for
 comparison. Both additions share one adjustable soft limit and are off by
 default for safe initial testing.
 
+The A2A shake LVars are recorded without conversion because their unit, neutral
+value, and range are not yet established. They are not forwarded to DRSM or
+treated as acceleration. Once validated against logs, they can act as a
+turbulence gate or intensity envelope while acceleration and wind continue to
+provide the physical heave direction and magnitude.
+
 Four presets provide repeatable starting points. Selecting one enables the
 mixer and copies its values into the normal controls; every value can still be
 edited afterwards.
@@ -140,7 +148,8 @@ For a diagnostic log, click **CSV aufnehmen** after the bridge is running and
 sampled even when those values are not routed to DCS. It includes A2A and stock
 vertical acceleration, world acceleration, G force, aircraft/ambient/relative
 vertical wind, body/world vertical velocity, cloud density, pitch rate, pitch,
-and elevator input.
+elevator input, `L:AirframeShake`, `L:PanelVerticalShake`,
+`L:PanelHorizontalShake`, and the experimental `L:CameraHeight`.
 
 Do not run another DCS-format telemetry sender to the same DRSM endpoint at the
 same time, or DRSM may receive conflicting packets.
@@ -186,8 +195,8 @@ and UDP output continue normally, and the UI receives one current snapshot when
 it is shown again.
 
 The default profile maps 14 output channels to 13 unique SimConnect sources and
-also samples 13 focused diagnostic candidates, with overlaps deduplicated. This
-results in 23 values per visual frame in the default configuration. Shared
+also samples 17 focused diagnostic candidates, with overlaps deduplicated. This
+results in 27 values per visual frame in the default configuration. Shared
 inputs such as `L:Eng1_RPM` are subscribed only once. Changing scale or offset
 does not reconnect SimConnect; changing an enabled channel's source or sampling
 period rebuilds the compact subscription automatically.
