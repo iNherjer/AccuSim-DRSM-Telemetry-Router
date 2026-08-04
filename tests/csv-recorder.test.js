@@ -25,15 +25,28 @@ test('CSV recorder writes raw sources, routed outputs and turbulence diagnostics
         packet: { t: 0.02 },
         outputValues: { 'acc.2': -0.85 },
         diagnostics: {
-          gravity: { vectorG: [0.1, 0.2, -0.97] },
+          timing: {
+            sampleDtSeconds: 0.02,
+            gapDetected: true,
+            postGapTurbulenceSuppressed: true,
+            postGapRemainingSeconds: 0.73
+          },
+          gravity: {
+            vectorG: [0.1, 0.2, -0.97],
+            referencePitchRad: -0.1,
+            referenceRollRad: 0.2,
+            referenceValid: true
+          },
           turbulence: {
             sourceG: 0.12,
             bandG: 0.08,
             mainExtraG: 0.02,
             wind: { sourceG: 0.04, bandG: 0.03, extraG: 0.01 },
             unlimitedExtraG: 0.03,
+            computedExtraG: 0.03,
             extraG: 0.03,
-            limited: false
+            limited: false,
+            suppressed: true
           }
         }
       }
@@ -46,6 +59,9 @@ test('CSV recorder writes raw sources, routed outputs and turbulence diagnostics
     assert.match(text[0], /out_acc_2_g/);
     assert.match(text[0], /turbulence_extra_g/);
     assert.match(text[0], /turbulence_wind_extra_g/);
+    assert.match(text[0], /sample_dt_s/);
+    assert.match(text[0], /gravity_reference_pitch_rad/);
+    assert.match(text[0], /turbulence_suppressed/);
     assert.match(text[1], /1\.2500000/);
     assert.match(text[1], /-0\.8500000/);
   } finally {

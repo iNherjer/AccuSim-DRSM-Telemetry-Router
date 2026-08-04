@@ -66,7 +66,8 @@ Telemetry Router ── mapping / unit conversion ──► DCS v2 JSON over UDP
 - Small web bootstrapper with automatic update support
 - Configurable UDP host, port, packet name, and sampling period
 - Atomic persistent JSON configuration
-- DCS-compatible attitude-dependent 1 G gravity reference
+- DCS-compatible 1 G gravity reference derived from unscaled physical MSFS
+  attitude, independent of output scale, offset, or inversion
 - Optional turbulence mixer with four presets, band-pass, blend, gain, and soft G limit
 - Independently adjustable vertical-wind branch with source, mix, gain, and sign controls
 - Raw CSV diagnostics for A2A `AirframeShake`, vertical/horizontal panel shake,
@@ -75,7 +76,8 @@ Telemetry Router ── mapping / unit conversion ──► DCS v2 JSON over UDP
 - Contextual tooltips explain every turbulence input, mapping control and DCS output field
 - Bilingual output help describes axes, units and the intended DRSM use of fields such as `acc.1`
 - Fixed three-element DCS vectors to prevent malformed Primary cue packets
-- CSV recording of raw sources, routed outputs, gravity, and turbulence diagnostics
+- CSV recording of raw sources, routed outputs, telemetry gaps, gravity, and
+  turbulence diagnostics
 
 ## Core Comanche mapping
 
@@ -96,6 +98,9 @@ The A2A body-acceleration LVars are centred around zero and do not include the
 DCS gravity reference. By default, the router adds a full attitude-dependent
 gravity vector. In level flight this is `[0, 0, -1] G`; pitch and roll rotate it
 across all three body axes so DRSM can apply its normal DCS gravity compensation.
+The reference always uses the physical MSFS pitch and bank values, so changing
+the routed pitch/roll scale, offset, or inversion cannot create a false gravity
+component.
 Disable this processor only when using an input that already contains the 1 G
 reference.
 
@@ -106,7 +111,9 @@ vertical wind velocity into acceleration, filters it separately, and adds it to
 the main turbulence component. `AIRCRAFT WIND Y` is the recommended starting
 source; `AMBIENT WIND Y` and `RELATIVE WIND VELOCITY BODY Y` are available for
 comparison. Both additions share one adjustable soft limit and are off by
-default for safe initial testing.
+default for safe initial testing. After a telemetry gap longer than `250 ms`,
+the filter state is reset and only the added turbulence component is suppressed
+for `750 ms` while normal flight-model telemetry continues to be sent.
 
 The A2A shake LVars are recorded without conversion because their unit, neutral
 value, and range are not yet established. They are not forwarded to DRSM or

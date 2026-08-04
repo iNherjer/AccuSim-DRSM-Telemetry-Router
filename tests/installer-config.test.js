@@ -9,7 +9,7 @@ test('web installer is the only build target and closes legacy portable processe
   const root = path.resolve(__dirname, '..');
   const packageJson = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
   const includePath = packageJson.build?.nsisWeb?.include;
-  assert.equal(packageJson.version, '1.6.1');
+  assert.equal(packageJson.version, '1.6.2');
   assert.equal(includePath, 'build/installer.nsh');
   assert.deepEqual(packageJson.build?.win?.target, [{ target: 'nsis-web', arch: ['x64'] }]);
   assert.equal(packageJson.build?.portable, undefined);

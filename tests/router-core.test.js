@@ -15,7 +15,15 @@ const {
   compatibleOperationIds,
   safeCompatibleOperationIds
 } = require('../lib/catalog');
-const { RouterCore, gravityVector, normalizeConfig, operationCompatible, requiredSources } = require('../lib/router-core');
+const {
+  POST_GAP_TURBULENCE_SUPPRESSION_SECONDS,
+  RouterCore,
+  gravityReferenceAttitude,
+  gravityVector,
+  normalizeConfig,
+  operationCompatible,
+  requiredSources
+} = require('../lib/router-core');
 
 function close(actual, expected, epsilon = 1e-9) {
   assert(Math.abs(actual - expected) <= epsilon, `expected ${expected}, got ${actual}`);
@@ -254,6 +262,50 @@ test('DCS gravity reference is a full attitude-dependent 1g vector', () => {
   close(banked[2], -Math.sqrt(3) / 2);
 });
 
+test('gravity reference uses physical MSFS attitude independent of routed scaling and offset', () => {
+  const config = buildDefaultConfig();
+  config.channels.pitch.scale = 2;
+  config.channels.pitch.offset = 0.3;
+  config.channels.roll.scale = 3;
+  config.channels.roll.offset = -0.2;
+  const sourceValues = {
+    'a2a.acc.x': 0,
+    'a2a.acc.y': 0,
+    'a2a.acc.z': 0,
+    'std.angular.body.x': 0,
+    'std.angular.body.y': 0,
+    'std.angular.body.z': 0,
+    'std.pitch': 10,
+    'std.bank': 20,
+    'std.heading': 0,
+    'std.alt.agl': 0,
+    'std.airspeed.ias': 0,
+    'a2a.stall': 0,
+    'a2a.engine.rpm': 0
+  };
+  const result = new RouterCore(config).update(sourceValues, 0);
+  const reference = gravityReferenceAttitude(sourceValues);
+  close(reference.pitch, -Math.PI / 18);
+  close(reference.roll, -Math.PI / 9);
+  assert.equal(reference.valid, true);
+  close(result.packet.pitch, -Math.PI / 9 + 0.3);
+  close(result.packet.roll, -Math.PI / 3 - 0.2);
+  const expectedGravity = gravityVector(-Math.PI / 18, -Math.PI / 9, 1);
+  expectedGravity.forEach((value, index) => close(result.diagnostics.gravity.vectorG[index], value));
+  close(result.diagnostics.gravity.referencePitchRad, -Math.PI / 18);
+  close(result.diagnostics.gravity.referenceRollRad, -Math.PI / 9);
+  assert.equal(result.diagnostics.gravity.referenceValid, true);
+});
+
+test('gravity attitude remains subscribed when routed pitch and roll are disabled', () => {
+  const config = buildDefaultConfig();
+  config.channels.pitch.enabled = false;
+  config.channels.roll.enabled = false;
+  const sourceIds = requiredSources(config).map((source) => source.id);
+  assert.equal(sourceIds.includes('std.pitch'), true);
+  assert.equal(sourceIds.includes('std.bank'), true);
+});
+
 test('DCS vectors keep a fixed shape when an individual axis is disabled', () => {
   const config = buildDefaultConfig();
   config.gravity.enabled = false;
@@ -306,6 +358,53 @@ test('turbulence mixer adds only a bounded band-pass component to vertical accel
   assert(result.diagnostics.turbulence.extraG > 0);
   assert(result.diagnostics.turbulence.extraG < 0.2);
   assert(result.packet.acc[2] > 0.1);
+});
+
+test('turbulence is suppressed while filters settle after a telemetry gap', () => {
+  const config = buildDefaultConfig();
+  config.gravity.enabled = false;
+  config.turbulence.enabled = true;
+  config.turbulence.mix = 1;
+  config.turbulence.gain = 3;
+  config.turbulence.maxExtraG = 0.2;
+  const core = new RouterCore(config);
+  const sample = {
+    'a2a.acc.x': 0,
+    'a2a.acc.y': 0,
+    'a2a.acc.z': 0,
+    'std.angular.body.x': 0,
+    'std.angular.body.y': 0,
+    'std.angular.body.z': 0,
+    'std.pitch': 0,
+    'std.bank': 0,
+    'std.heading': 0,
+    'std.alt.agl': 0,
+    'std.airspeed.ias': 0,
+    'a2a.stall': 0,
+    'a2a.engine.rpm': 0
+  };
+  core.update(sample, 0);
+  sample['a2a.acc.y'] = 0.1 * 9.80665;
+  core.update(sample, 0.02);
+
+  const afterGap = core.update(sample, 0.5);
+  assert.equal(afterGap.diagnostics.timing.gapDetected, true);
+  assert.equal(afterGap.diagnostics.timing.postGapTurbulenceSuppressed, true);
+  close(afterGap.diagnostics.timing.postGapRemainingSeconds, POST_GAP_TURBULENCE_SUPPRESSION_SECONDS);
+
+  sample['a2a.acc.y'] = 0.8 * 9.80665;
+  const transient = core.update(sample, 0.52);
+  assert(transient.diagnostics.turbulence.computedExtraG > 0);
+  close(transient.diagnostics.turbulence.extraG, 0);
+  assert.equal(transient.diagnostics.turbulence.suppressed, true);
+  close(transient.packet.acc[2], 0.8);
+
+  for (let time = 0.54; time < 1.26; time += 0.02) core.update(sample, time);
+  sample['a2a.acc.y'] = 0.9 * 9.80665;
+  const recovered = core.update(sample, 1.26);
+  assert.equal(recovered.diagnostics.timing.postGapTurbulenceSuppressed, false);
+  assert(recovered.diagnostics.turbulence.extraG > 0);
+  assert(recovered.packet.acc[2] > 0.9);
 });
 
 test('enabled channel and diagnostic sources are required and deduplicated', () => {
