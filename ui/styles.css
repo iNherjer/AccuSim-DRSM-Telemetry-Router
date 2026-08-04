@@ -127,12 +127,21 @@ input:focus, select:focus { border-color: var(--blue); box-shadow: 0 0 0 3px rgb
 .turbulence-settings label:nth-child(n+5) .help-tip::after { right: -8px; left: auto; transform: translateY(4px); }
 .turbulence-settings label:nth-child(n+5) .help-tip:hover::after, .turbulence-settings label:nth-child(n+5) .help-tip:focus::after { transform: translateY(0); }
 .turbulence-settings { display: grid; grid-template-columns: minmax(245px, 1.7fr) repeat(5, minmax(95px, .72fr)); gap: 8px; }
-.turbulence-settings input, .turbulence-settings select, .compact-setting input { height: 34px; font-size: 11px; }
-.processor-live-row, .turbulence-live-grid { margin-top: 12px; }
-.processor-live-row > span, .turbulence-live-grid > span { display: block; padding: 8px 9px; border: 1px solid rgba(143,166,186,.13); border-radius: 8px; background: rgba(5,14,23,.55); }
-.processor-live-row small, .turbulence-live-grid small { display: block; color: var(--muted); font-size: 9px; }
-.processor-live-row output, .turbulence-live-grid output { display: block; margin-top: 3px; color: var(--green); font: 700 11px ui-monospace, SFMono-Regular, Consolas, monospace; }
+.turbulence-settings input, .turbulence-settings select, .turbulence-wind-settings input, .turbulence-wind-settings select, .compact-setting input { height: 34px; font-size: 11px; }
+.turbulence-wind-section { margin-top: 12px; padding: 11px; border: 1px solid rgba(84,184,255,.18); border-radius: 10px; background: rgba(84,184,255,.035); }
+.wind-section-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; margin-bottom: 9px; }
+.wind-section-heading strong { display: block; color: #cfeaff; font-size: 11px; }
+.wind-section-heading small { display: block; margin-top: 2px; color: var(--muted); font-size: 9px; }
+.turbulence-wind-settings { display: grid; grid-template-columns: minmax(245px, 1.7fr) minmax(115px, .75fr) minmax(115px, .75fr) minmax(120px, .7fr); gap: 8px; align-items: end; }
+.wind-invert-setting > input { width: 19px; height: 19px; margin: 7px 0 8px 2px; accent-color: var(--blue); }
+.turbulence-wind-settings label:nth-child(n+3) .help-tip::after { right: -8px; left: auto; transform: translateY(4px); }
+.turbulence-wind-settings label:nth-child(n+3) .help-tip:hover::after, .turbulence-wind-settings label:nth-child(n+3) .help-tip:focus::after { transform: translateY(0); }
+.processor-live-row, .turbulence-live-grid, .turbulence-wind-live-grid { margin-top: 12px; }
+.processor-live-row > span, .turbulence-live-grid > span, .turbulence-wind-live-grid > span { display: block; padding: 8px 9px; border: 1px solid rgba(143,166,186,.13); border-radius: 8px; background: rgba(5,14,23,.55); }
+.processor-live-row small, .turbulence-live-grid small, .turbulence-wind-live-grid small { display: block; color: var(--muted); font-size: 9px; }
+.processor-live-row output, .turbulence-live-grid output, .turbulence-wind-live-grid output { display: block; margin-top: 3px; color: var(--green); font: 700 11px ui-monospace, SFMono-Regular, Consolas, monospace; }
 .turbulence-live-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 7px; }
+.turbulence-wind-live-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 7px; margin-top: 9px; }
 .turbulence-card .hint.error { color: var(--red); }
 
 .mapping-heading { align-items: end; }

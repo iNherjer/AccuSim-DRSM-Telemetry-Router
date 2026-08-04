@@ -23,6 +23,7 @@ const {
   SAFE_SOURCE_IDS,
   TURBULENCE_PRESETS,
   TURBULENCE_SOURCE_IDS,
+  TURBULENCE_WIND_SOURCE_IDS,
   UNIT_DEFINITIONS,
   buildDefaultConfig
 } = require('./lib/catalog');
@@ -61,7 +62,8 @@ function publicCatalog() {
     safeOperationCompatibility: SAFE_OPERATION_COMPATIBILITY,
     safeSourceIds: SAFE_SOURCE_IDS,
     turbulencePresets: TURBULENCE_PRESETS,
-    turbulenceSourceIds: TURBULENCE_SOURCE_IDS
+    turbulenceSourceIds: TURBULENCE_SOURCE_IDS,
+    turbulenceWindSourceIds: TURBULENCE_WIND_SOURCE_IDS
   };
 }
 

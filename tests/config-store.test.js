@@ -13,7 +13,7 @@ test('config store creates and atomically persists bridge configuration', () => 
     const store = new BridgeConfigStore({ dataDirectory: root });
     const initial = store.read();
     assert.equal(initial.port, 4135);
-    assert.equal(initial.schemaVersion, 3);
+    assert.equal(initial.schemaVersion, 4);
     assert.equal(initial.language, 'de');
     assert.equal(initial.expertMode, false);
     assert.equal(initial.unsafeMode, false);

@@ -26,7 +26,15 @@ test('CSV recorder writes raw sources, routed outputs and turbulence diagnostics
         outputValues: { 'acc.2': -0.85 },
         diagnostics: {
           gravity: { vectorG: [0.1, 0.2, -0.97] },
-          turbulence: { sourceG: 0.12, bandG: 0.08, extraG: 0.03, limited: false }
+          turbulence: {
+            sourceG: 0.12,
+            bandG: 0.08,
+            mainExtraG: 0.02,
+            wind: { sourceG: 0.04, bandG: 0.03, extraG: 0.01 },
+            unlimitedExtraG: 0.03,
+            extraG: 0.03,
+            limited: false
+          }
         }
       }
     });
@@ -37,6 +45,7 @@ test('CSV recorder writes raw sources, routed outputs and turbulence diagnostics
     assert.match(text[0], /src_a2a_acc_y_mps2/);
     assert.match(text[0], /out_acc_2_g/);
     assert.match(text[0], /turbulence_extra_g/);
+    assert.match(text[0], /turbulence_wind_extra_g/);
     assert.match(text[1], /1\.2500000/);
     assert.match(text[1], /-0\.8500000/);
   } finally {

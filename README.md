@@ -57,7 +57,8 @@ Telemetry Router ── mapping / unit conversion ──► DCS v2 JSON over UDP
 - Full documented numeric DCS v2 output catalog in Expert mode
 - Explicit red Raw mode for deliberately unrestricted experimental mappings
 - User-defined LVars with add/remove controls
-- SimConnect subscribes only to sources selected by enabled output channels
+- SimConnect subscribes to enabled output sources plus a small fixed set of
+  vertical-motion diagnostics used by CSV recording
 - Automatically reconnecting SimConnect client
 - Renderer updates freeze while the window is hidden or minimized; telemetry continues
 - Installed app checks for updates at startup and offers install or per-version skip
@@ -67,6 +68,7 @@ Telemetry Router ── mapping / unit conversion ──► DCS v2 JSON over UDP
 - Atomic persistent JSON configuration
 - DCS-compatible attitude-dependent 1 G gravity reference
 - Optional turbulence mixer with four presets, band-pass, blend, gain, and soft G limit
+- Independently adjustable vertical-wind branch with source, mix, gain, and sign controls
 - Persistent German/English interface, including tray, updater, status and validation messages
 - Contextual tooltips explain every turbulence input, mapping control and DCS output field
 - Bilingual output help describes axes, units and the intended DRSM use of fields such as `acc.1`
@@ -97,8 +99,12 @@ reference.
 
 The optional turbulence mixer leaves the original acceleration intact. It
 isolates a configurable fast band (default `0.7–5 Hz`) and blends only that
-component into vertical acceleration, with an adjustable soft limit. It is off
-by default for safe initial testing.
+component into vertical acceleration. A second optional branch differentiates
+vertical wind velocity into acceleration, filters it separately, and adds it to
+the main turbulence component. `AIRCRAFT WIND Y` is the recommended starting
+source; `AMBIENT WIND Y` and `RELATIVE WIND VELOCITY BODY Y` are available for
+comparison. Both additions share one adjustable soft limit and are off by
+default for safe initial testing.
 
 Four presets provide repeatable starting points. Selecting one enables the
 mixer and copies its values into the normal controls; every value can still be
@@ -130,7 +136,11 @@ telemetry gap or configuration change to limit runaway drift.
 5. Click **Bridge starten**.
 
 For a diagnostic log, click **CSV aufnehmen** after the bridge is running and
-**CSV stoppen** when the manoeuvre is complete.
+**CSV stoppen** when the manoeuvre is complete. The focused diagnostic set is
+sampled even when those values are not routed to DCS. It includes A2A and stock
+vertical acceleration, world acceleration, G force, aircraft/ambient/relative
+vertical wind, body/world vertical velocity, cloud density, pitch rate, pitch,
+and elevator input.
 
 Do not run another DCS-format telemetry sender to the same DRSM endpoint at the
 same time, or DRSM may receive conflicting packets.
@@ -175,10 +185,12 @@ Chromium renderer receives no live telemetry snapshots. SimConnect processing
 and UDP output continue normally, and the UI receives one current snapshot when
 it is shown again.
 
-The default profile maps 14 output channels to 13 unique SimConnect sources.
-Shared inputs such as `L:Eng1_RPM` are subscribed only once. Changing scale or
-offset does not reconnect SimConnect; changing an enabled channel's source or
-sampling period rebuilds the compact subscription automatically.
+The default profile maps 14 output channels to 13 unique SimConnect sources and
+also samples 13 focused diagnostic candidates, with overlaps deduplicated. This
+results in 23 values per visual frame in the default configuration. Shared
+inputs such as `L:Eng1_RPM` are subscribed only once. Changing scale or offset
+does not reconnect SimConnect; changing an enabled channel's source or sampling
+period rebuilds the compact subscription automatically.
 
 ## Updates and installation
 

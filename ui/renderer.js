@@ -15,7 +15,10 @@ const elements = Object.fromEntries([
   'gravityStrengthInput', 'gravityVectorLive', 'turbulenceEnabledInput',
   'turbulenceSourceSelect', 'turbulenceMixInput', 'turbulenceGainInput',
   'turbulenceLowCutInput', 'turbulenceHighCutInput', 'turbulenceMaxExtraInput',
+  'turbulenceWindEnabledInput', 'turbulenceWindSourceSelect',
+  'turbulenceWindMixInput', 'turbulenceWindGainInput', 'turbulenceWindInvertInput',
   'turbulenceSourceLive', 'turbulenceBandLive', 'turbulenceExtraLive',
+  'turbulenceWindSourceLive', 'turbulenceWindBandLive', 'turbulenceWindExtraLive',
   'turbulenceFinalLive', 'turbulenceStatus', 'turbulencePresetState',
   'languageSelect'
 ].map((id) => [id, document.getElementById(id)]));
@@ -390,6 +393,16 @@ function turbulenceSourceOptions(selectedId) {
   return groupedSourceOptions(sources, selectedId);
 }
 
+function turbulenceWindSourceOptions(selectedId) {
+  const allowedBuiltinIds = new Set(state.catalog.turbulenceWindSourceIds || []);
+  const sources = state.catalog.sources.filter((source) => {
+    const family = state.catalog.units[source.inputUnit]?.family;
+    const customSource = source.group === 'Eigene LVars' || source.id.startsWith('custom.');
+    return family === 'velocity' && (customSource || allowedBuiltinIds.has(source.id));
+  });
+  return groupedSourceOptions(sources, selectedId);
+}
+
 function activeTurbulencePreset() {
   const config = draftConfig.turbulence || {};
   return (state.catalog.turbulencePresets || []).find((preset) => (
@@ -432,6 +445,15 @@ function renderDynamicsConfig() {
   elements.turbulenceLowCutInput.value = draftConfig.turbulence?.lowCutHz ?? 0.7;
   elements.turbulenceHighCutInput.value = draftConfig.turbulence?.highCutHz ?? 5;
   elements.turbulenceMaxExtraInput.value = draftConfig.turbulence?.maxExtraG ?? 0.2;
+  elements.turbulenceWindEnabledInput.checked = draftConfig.turbulence?.windEnabled === true;
+  elements.turbulenceWindSourceSelect.replaceChildren(
+    turbulenceWindSourceOptions(draftConfig.turbulence?.windSourceId || 'std.wind.aircraft.y')
+  );
+  elements.turbulenceWindSourceSelect.value = draftConfig.turbulence?.windSourceId || 'std.wind.aircraft.y';
+  elements.turbulenceWindSourceSelect.title = `${t('tooltip.turbulenceWindSource')}\n${elements.turbulenceWindSourceSelect.selectedOptions[0]?.textContent || ''}`;
+  elements.turbulenceWindMixInput.value = Math.round(Number(draftConfig.turbulence?.windMix ?? 0.25) * 100);
+  elements.turbulenceWindGainInput.value = draftConfig.turbulence?.windGain ?? 1;
+  elements.turbulenceWindInvertInput.checked = draftConfig.turbulence?.windInvert === true;
   renderTurbulencePresetState();
 }
 
@@ -613,9 +635,13 @@ function renderLive(runtime = {}) {
     : [0, 0, 0]);
   elements.gravityVectorLive.textContent = `[${gravityVector.map((value) => numberText(value, 3)).join(', ')}] g`;
   const turbulence = diagnostics.turbulence || {};
+  const turbulenceWind = turbulence.wind || {};
   elements.turbulenceSourceLive.textContent = `${numberText(turbulence.sourceG, 4)} g`;
   elements.turbulenceBandLive.textContent = `${numberText(turbulence.bandG, 4)} g`;
   elements.turbulenceExtraLive.textContent = `${numberText(turbulence.extraG, 4)} g`;
+  elements.turbulenceWindSourceLive.textContent = `${numberText(turbulenceWind.sourceG, 4)} g`;
+  elements.turbulenceWindBandLive.textContent = `${numberText(turbulenceWind.bandG, 4)} g`;
+  elements.turbulenceWindExtraLive.textContent = `${numberText(turbulenceWind.extraG, 4)} g`;
   elements.turbulenceFinalLive.textContent = diagnostics.accelerationG
     ? `${numberText(diagnostics.accelerationG[2], 4)} g`
     : '—';
@@ -753,6 +779,15 @@ bindNestedNumber(elements.turbulenceGainInput, 'turbulence', 'gain');
 bindNestedNumber(elements.turbulenceLowCutInput, 'turbulence', 'lowCutHz');
 bindNestedNumber(elements.turbulenceHighCutInput, 'turbulence', 'highCutHz');
 bindNestedNumber(elements.turbulenceMaxExtraInput, 'turbulence', 'maxExtraG');
+bindNestedCheckbox(elements.turbulenceWindEnabledInput, 'turbulence', 'windEnabled');
+elements.turbulenceWindSourceSelect.addEventListener('change', () => {
+  draftConfig.turbulence.windSourceId = elements.turbulenceWindSourceSelect.value;
+  elements.turbulenceWindSourceSelect.title = `${t('tooltip.turbulenceWindSource')}\n${elements.turbulenceWindSourceSelect.selectedOptions[0]?.textContent || ''}`;
+  queueSave();
+});
+bindNestedNumber(elements.turbulenceWindMixInput, 'turbulence', 'windMix', (value) => Number(value) / 100);
+bindNestedNumber(elements.turbulenceWindGainInput, 'turbulence', 'windGain');
+bindNestedCheckbox(elements.turbulenceWindInvertInput, 'turbulence', 'windInvert');
 
 for (const button of document.querySelectorAll('[data-turbulence-preset]')) {
   button.addEventListener('click', () => {

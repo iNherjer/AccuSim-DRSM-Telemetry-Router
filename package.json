@@ -1,6 +1,6 @@
 {
   "name": "accusim-drsm-telemetry-router",
-  "version": "1.5.0",
+  "version": "1.6.0",
   "private": true,
   "description": "Configurable MSFS SimConnect to DRSM DCS v2 telemetry router",
   "author": "VFR Multitool",

@@ -166,6 +166,38 @@
               <input id="turbulenceMaxExtraInput" type="number" min="0.01" max="2" step="0.01" data-i18n-title="tooltip.turbulenceLimit">
             </label>
           </div>
+          <div class="turbulence-wind-section">
+            <div class="wind-section-heading">
+              <div>
+                <strong data-i18n="turbulence.windTitle">Vertikalwind-Zusatz</strong>
+                <small data-i18n="turbulence.windSubtitle">Leitet Wind Y in eine begrenzte Heave-Beschleunigung ab</small>
+              </div>
+              <label class="switch-label" data-i18n-title="tooltip.turbulenceWindEnabled"><input id="turbulenceWindEnabledInput" type="checkbox"><span data-i18n="turbulence.windActive">Beimischen</span></label>
+            </div>
+            <div class="turbulence-wind-settings">
+              <label class="wide-setting">
+                <span class="setting-label"><span data-i18n="turbulence.windSource">Windquelle</span> <span class="help-tip" tabindex="0" role="note" data-i18n-tooltip="tooltip.turbulenceWindSource">?</span></span>
+                <select id="turbulenceWindSourceSelect"></select>
+              </label>
+              <label>
+                <span class="setting-label"><span data-i18n="turbulence.windMix">Wind-Mischung (%)</span> <span class="help-tip" tabindex="0" role="note" data-i18n-tooltip="tooltip.turbulenceWindMix">?</span></span>
+                <input id="turbulenceWindMixInput" type="number" min="0" max="100" step="5" data-i18n-title="tooltip.turbulenceWindMix">
+              </label>
+              <label>
+                <span class="setting-label"><span data-i18n="turbulence.windGain">Wind-Verstärkung</span> <span class="help-tip" tabindex="0" role="note" data-i18n-tooltip="tooltip.turbulenceWindGain">?</span></span>
+                <input id="turbulenceWindGainInput" type="number" min="0" max="8" step="0.1" data-i18n-title="tooltip.turbulenceWindGain">
+              </label>
+              <label class="wind-invert-setting" data-i18n-title="tooltip.turbulenceWindInvert">
+                <span class="setting-label"><span data-i18n="turbulence.windInvert">Wind invertieren</span> <span class="help-tip" tabindex="0" role="note" data-i18n-tooltip="tooltip.turbulenceWindInvert">?</span></span>
+                <input id="turbulenceWindInvertInput" type="checkbox">
+              </label>
+            </div>
+            <div class="turbulence-wind-live-grid">
+              <span><small data-i18n="turbulence.liveWindSource">Wind-Ableitung</small><output id="turbulenceWindSourceLive">—</output></span>
+              <span><small data-i18n="turbulence.liveWindBand">Wind-Bandpass</small><output id="turbulenceWindBandLive">—</output></span>
+              <span><small data-i18n="turbulence.liveWindExtra">Wind-Zusatz</small><output id="turbulenceWindExtraLive">—</output></span>
+            </div>
+          </div>
           <div class="turbulence-live-grid">
             <span><small data-i18n="turbulence.liveSource">Quelle</small><output id="turbulenceSourceLive">—</output></span>
             <span><small data-i18n="turbulence.liveBand">Bandpass</small><output id="turbulenceBandLive">—</output></span>

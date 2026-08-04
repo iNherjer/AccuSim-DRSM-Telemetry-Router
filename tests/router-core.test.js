@@ -4,10 +4,12 @@ const assert = require('node:assert/strict');
 const test = require('node:test');
 const {
   BUILTIN_SOURCES,
+  DIAGNOSTIC_SOURCE_IDS,
   OUTPUTS,
   SAFE_SOURCE_IDS,
   TURBULENCE_PRESETS,
   TURBULENCE_SOURCE_IDS,
+  TURBULENCE_WIND_SOURCE_IDS,
   UNIT_DEFINITIONS,
   buildDefaultConfig,
   compatibleOperationIds,
@@ -205,7 +207,7 @@ test('legacy full default is migrated to the reduced basic output set', () => {
   legacy.channels['vel.0'].enabled = true;
   legacy.channels.gear_left.enabled = true;
   const normalized = normalizeConfig(legacy);
-  assert.equal(normalized.schemaVersion, 3);
+  assert.equal(normalized.schemaVersion, 4);
   assert.equal(normalized.expertMode, true);
   assert.equal(normalized.channels['acc.0'].enabled, true);
   assert.equal(normalized.channels['vel.0'].enabled, false);
@@ -291,10 +293,10 @@ test('turbulence mixer adds only a bounded band-pass component to vertical accel
   assert(result.packet.acc[2] > 0.1);
 });
 
-test('only enabled channel sources are required and shared sources are deduplicated', () => {
+test('enabled channel and diagnostic sources are required and deduplicated', () => {
   const config = buildDefaultConfig();
   const defaults = requiredSources(config).map((entry) => entry.id);
-  assert.equal(defaults.length, 13);
+  for (const sourceId of DIAGNOSTIC_SOURCE_IDS) assert.equal(defaults.includes(sourceId), true, sourceId);
   assert.equal(defaults.includes('a2a.engine.rpm'), true);
   assert.equal(defaults.includes('std.gear.left'), false);
   assert.equal(defaults.includes('std.wind.x'), false);
@@ -333,9 +335,54 @@ test('turbulence source list stays limited to meaningful vertical detectors', ()
   assert.deepEqual(TURBULENCE_SOURCE_IDS, [
     'a2a.acc.y',
     'std.acc.body.y',
+    'std.acc.world.y',
     'std.gforce',
-    'std.wind.y'
+    'std.wind.y',
+    'std.wind.aircraft.y',
+    'std.wind.relative.body.y'
   ]);
+  assert.deepEqual(TURBULENCE_WIND_SOURCE_IDS, [
+    'std.wind.aircraft.y',
+    'std.wind.y',
+    'std.wind.relative.body.y'
+  ]);
+});
+
+test('vertical wind branch is differentiated, mixed and bounded independently', () => {
+  const config = buildDefaultConfig();
+  config.gravity.enabled = false;
+  config.turbulence.enabled = true;
+  config.turbulence.mix = 0;
+  config.turbulence.windEnabled = true;
+  config.turbulence.windMix = 1;
+  config.turbulence.windGain = 1;
+  config.turbulence.maxExtraG = 0.2;
+  const core = new RouterCore(config);
+  const sample = {
+    'a2a.acc.x': 0,
+    'a2a.acc.y': 0,
+    'a2a.acc.z': 0,
+    'std.wind.aircraft.y': 0,
+    'std.angular.body.x': 0,
+    'std.angular.body.y': 0,
+    'std.angular.body.z': 0,
+    'std.pitch': 0,
+    'std.bank': 0,
+    'std.heading': 0,
+    'std.alt.agl': 0,
+    'std.airspeed.ias': 0,
+    'a2a.stall': 0,
+    'a2a.engine.rpm': 0
+  };
+  core.update(sample, 0);
+  sample['std.wind.aircraft.y'] = 1;
+  const result = core.update(sample, 0.02);
+  assert(result.diagnostics.turbulence.wind.sourceG > 0);
+  assert(result.diagnostics.turbulence.wind.bandG > 0);
+  assert(result.diagnostics.turbulence.wind.extraG > 0);
+  assert(result.diagnostics.turbulence.extraG > 0);
+  assert(result.diagnostics.turbulence.extraG < 0.2);
+  assert(result.packet.acc[2] > 0);
 });
 
 test('safe runtime blocks stored Raw mappings until Raw mode is enabled', () => {
