@@ -12,7 +12,12 @@ const elements = Object.fromEntries([
   'updateCheckButton', 'updateBanner', 'updateTitle', 'updateMessage',
   'updateProgressWrap', 'updateProgress', 'downloadUpdateButton',
   'skipUpdateButton', 'restartUpdateButton', 'gravityEnabledInput',
-  'gravityStrengthInput', 'gravityVectorLive', 'turbulenceEnabledInput',
+  'gravityStrengthInput', 'gravityVectorLive', 'attitudeMixEnabledInput',
+  'attitudeMixPitchInput', 'attitudeMixRollInput', 'attitudeMixVectorLive',
+  'rotationCorrectionEnabledInput', 'rotationCorrectionTauInput',
+  'rotationWashoutEnabledInput', 'rotationWashoutTauInput',
+  'rotationReferenceLive', 'rotationWashoutLive',
+  'turbulenceEnabledInput',
   'turbulenceSourceSelect', 'turbulenceMixInput', 'turbulenceGainInput',
   'turbulenceLowCutInput', 'turbulenceHighCutInput', 'turbulenceMaxExtraInput',
   'turbulenceWindEnabledInput', 'turbulenceWindSourceSelect',
@@ -434,6 +439,13 @@ function renderTurbulencePresetState() {
 function renderDynamicsConfig() {
   elements.gravityEnabledInput.checked = draftConfig.gravity?.enabled === true;
   elements.gravityStrengthInput.value = draftConfig.gravity?.strengthG ?? 1;
+  elements.attitudeMixEnabledInput.checked = draftConfig.attitudeMix?.enabled === true;
+  elements.attitudeMixPitchInput.value = Math.round(Number(draftConfig.attitudeMix?.pitchMix ?? 1) * 100);
+  elements.attitudeMixRollInput.value = Math.round(Number(draftConfig.attitudeMix?.rollMix ?? 1) * 100);
+  elements.rotationCorrectionEnabledInput.checked = draftConfig.rotationFusion?.correctionEnabled === true;
+  elements.rotationCorrectionTauInput.value = draftConfig.rotationFusion?.correctionTauSeconds ?? 1.25;
+  elements.rotationWashoutEnabledInput.checked = draftConfig.rotationFusion?.residualWashoutEnabled === true;
+  elements.rotationWashoutTauInput.value = draftConfig.rotationFusion?.residualWashoutTauSeconds ?? 6;
   elements.turbulenceEnabledInput.checked = draftConfig.turbulence?.enabled === true;
   elements.turbulenceSourceSelect.replaceChildren(
     turbulenceSourceOptions(draftConfig.turbulence?.sourceId || 'a2a.acc.y')
@@ -631,9 +643,20 @@ function renderLive(runtime = {}) {
 
   const diagnostics = runtime.diagnostics || {};
   const gravityVector = diagnostics.gravity?.vectorG || (draftConfig.gravity?.enabled
-    ? [0, 0, -Number(draftConfig.gravity?.strengthG ?? 1)]
+    ? [0, 0, Number(draftConfig.gravity?.strengthG ?? 1)]
     : [0, 0, 0]);
   elements.gravityVectorLive.textContent = `[${gravityVector.map((value) => numberText(value, 3)).join(', ')}] g`;
+  const attitudeMixVector = diagnostics.attitudeMix?.vectorG || [0, 0, 0];
+  elements.attitudeMixVectorLive.textContent = `[${attitudeMixVector.slice(0, 2).map((value) => numberText(value, 3)).join(', ')}] g`;
+  const angularReference = diagnostics.angularReference?.filteredRates || [0, 0, 0];
+  elements.rotationReferenceLive.textContent = `[${angularReference.map((value) => numberText(value, 4)).join(', ')}] rad/s`;
+  const fusionAxes = ['Pitch', 'Roll', 'Yaw'];
+  const washoutAxes = fusionAxes.filter((_axis, index) => (
+    diagnostics.angularFusion?.[`ang_vel.${index}`]?.washoutActive === true
+  ));
+  elements.rotationWashoutLive.textContent = washoutAxes.length
+    ? t('rotationFusion.activeAxes', { axes: washoutAxes.join(', ') })
+    : t('rotationFusion.inactive');
   const turbulence = diagnostics.turbulence || {};
   const turbulenceWind = turbulence.wind || {};
   elements.turbulenceSourceLive.textContent = `${numberText(turbulence.sourceG, 4)} g`;
@@ -768,6 +791,13 @@ function bindNestedNumber(element, section, key, transform = Number) {
 
 bindNestedCheckbox(elements.gravityEnabledInput, 'gravity', 'enabled');
 bindNestedNumber(elements.gravityStrengthInput, 'gravity', 'strengthG');
+bindNestedCheckbox(elements.attitudeMixEnabledInput, 'attitudeMix', 'enabled');
+bindNestedNumber(elements.attitudeMixPitchInput, 'attitudeMix', 'pitchMix', (value) => Number(value) / 100);
+bindNestedNumber(elements.attitudeMixRollInput, 'attitudeMix', 'rollMix', (value) => Number(value) / 100);
+bindNestedCheckbox(elements.rotationCorrectionEnabledInput, 'rotationFusion', 'correctionEnabled');
+bindNestedNumber(elements.rotationCorrectionTauInput, 'rotationFusion', 'correctionTauSeconds');
+bindNestedCheckbox(elements.rotationWashoutEnabledInput, 'rotationFusion', 'residualWashoutEnabled');
+bindNestedNumber(elements.rotationWashoutTauInput, 'rotationFusion', 'residualWashoutTauSeconds');
 bindNestedCheckbox(elements.turbulenceEnabledInput, 'turbulence', 'enabled');
 elements.turbulenceSourceSelect.addEventListener('change', () => {
   draftConfig.turbulence.sourceId = elements.turbulenceSourceSelect.value;

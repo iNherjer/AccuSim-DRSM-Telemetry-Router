@@ -55,6 +55,9 @@ test('default mapping emits the validated essential Comanche channels', () => {
     'a2a.acc.x': 9.80665,
     'a2a.acc.y': 19.6133,
     'a2a.acc.z': 29.41995,
+    'a2a.rotacc.x': 0,
+    'a2a.rotacc.y': 0,
+    'a2a.rotacc.z': 0,
     'std.angular.body.x': 1,
     'std.angular.body.y': 2,
     'std.angular.body.z': 3,
@@ -85,8 +88,8 @@ test('default mapping emits the validated essential Comanche channels', () => {
   }, 10);
   close(result.packet.acc[0], 1 + Math.sin(-Math.PI / 9) * Math.cos(-Math.PI / 18));
   close(result.packet.acc[1], 3 - Math.sin(-Math.PI / 18));
-  close(result.packet.acc[2], 2 - Math.cos(-Math.PI / 9) * Math.cos(-Math.PI / 18));
-  assert.deepEqual(result.packet.ang_vel, [1, 3, 2]);
+  close(result.packet.acc[2], 2 + Math.cos(-Math.PI / 9) * Math.cos(-Math.PI / 18));
+  assert.deepEqual(result.packet.ang_vel, [0, 0, 0]);
   close(result.packet.pitch, -Math.PI / 18);
   close(result.packet.roll, -Math.PI / 9);
   close(result.packet.yaw, -Math.PI / 2);
@@ -133,6 +136,182 @@ test('angular acceleration is integrated only when explicitly selected', () => {
   close(second.packet.ang_vel[0], 0.2, 1e-12);
 });
 
+test('A2A fusion integrates fast rotation acceleration while removing slow drift', () => {
+  const config = buildDefaultConfig();
+  Object.values(config.channels).forEach((channel) => { channel.enabled = false; });
+  config.channels['ang_vel.0'] = {
+    enabled: true,
+    sourceId: 'a2a.rotacc.x',
+    inputUnit: 'radps2',
+    operation: 'fuse',
+    invert: false,
+    scale: 1,
+    offset: 0
+  };
+  const core = new RouterCore(config);
+  let result;
+  for (let index = 0; index <= 1000; index += 1) {
+    result = core.update({
+      'a2a.rotacc.x': 0.02,
+      'std.pitch': 0,
+      'std.bank': 0,
+      'std.heading': 0
+    }, index * 0.02);
+  }
+  assert(Math.abs(result.packet.ang_vel[0]) < 0.04);
+  assert.equal(result.diagnostics.angularFusion['ang_vel.0'].referenceValid, true);
+  assert(Math.abs(result.diagnostics.angularFusion['ang_vel.0'].correctionRadps) > 0);
+});
+
+test('A2A fusion recovers a sustained body rate from the slow attitude anchor', () => {
+  const config = buildDefaultConfig();
+  Object.values(config.channels).forEach((channel) => { channel.enabled = false; });
+  config.channels['ang_vel.0'] = {
+    enabled: true,
+    sourceId: 'a2a.rotacc.x',
+    inputUnit: 'radps2',
+    operation: 'fuse',
+    invert: false,
+    scale: 1,
+    offset: 0
+  };
+  const core = new RouterCore(config);
+  let result;
+  for (let index = 0; index <= 250; index += 1) {
+    const time = index * 0.02;
+    result = core.update({
+      'a2a.rotacc.x': 0,
+      'std.pitch': 0.2 * time / UNIT_DEFINITIONS.degrees.factor,
+      'std.bank': 0,
+      'std.heading': 0
+    }, time);
+  }
+  close(result.diagnostics.angularFusion['ang_vel.0'].referenceRateRadps, 0.2, 0.002);
+  close(result.packet.ang_vel[0], 0.2, 0.01);
+});
+
+test('A2A yaw fusion follows the heading sign observed in A2A flight logs', () => {
+  const config = buildDefaultConfig();
+  Object.values(config.channels).forEach((channel) => { channel.enabled = false; });
+  config.channels['ang_vel.2'] = {
+    enabled: true,
+    sourceId: 'a2a.rotacc.y',
+    inputUnit: 'radps2',
+    operation: 'fuse',
+    invert: false,
+    scale: 1,
+    offset: 0
+  };
+  const core = new RouterCore(config);
+  let result;
+  for (let index = 0; index <= 250; index += 1) {
+    const time = index * 0.02;
+    result = core.update({
+      'a2a.rotacc.y': 0,
+      'std.pitch': 0,
+      'std.bank': 0,
+      'std.heading': 0.15 * time / UNIT_DEFINITIONS.degrees.factor
+    }, time);
+  }
+  close(result.diagnostics.angularFusion['ang_vel.2'].referenceRateRadps, 0.15, 0.002);
+  close(result.packet.ang_vel[2], 0.15, 0.01);
+});
+
+test('attitude drift correction can be disabled for a pure A2A integration comparison', () => {
+  const config = buildDefaultConfig();
+  Object.values(config.channels).forEach((channel) => { channel.enabled = false; });
+  config.rotationFusion.correctionEnabled = false;
+  config.channels['ang_vel.0'] = {
+    enabled: true,
+    sourceId: 'a2a.rotacc.x',
+    inputUnit: 'radps2',
+    operation: 'fuse',
+    invert: false,
+    scale: 1,
+    offset: 0
+  };
+  const core = new RouterCore(config);
+  let result;
+  for (let index = 0; index <= 1000; index += 1) {
+    result = core.update({
+      'a2a.rotacc.x': 0.02,
+      'std.pitch': 0,
+      'std.bank': 0,
+      'std.heading': 0
+    }, index * 0.02);
+  }
+  close(result.packet.ang_vel[0], 0.4, 1e-9);
+  assert.equal(result.diagnostics.angularFusion['ang_vel.0'].correctionActive, false);
+});
+
+test('experimental residual washout returns an unconfirmed small angular rate to zero', () => {
+  const config = buildDefaultConfig();
+  Object.values(config.channels).forEach((channel) => { channel.enabled = false; });
+  config.rotationFusion.correctionEnabled = false;
+  config.rotationFusion.residualWashoutEnabled = true;
+  config.rotationFusion.residualWashoutTauSeconds = 2;
+  config.channels['ang_vel.0'] = {
+    enabled: true,
+    sourceId: 'a2a.rotacc.x',
+    inputUnit: 'radps2',
+    operation: 'fuse',
+    invert: false,
+    scale: 1,
+    offset: 0
+  };
+  const core = new RouterCore(config);
+  const source = {
+    'a2a.rotacc.x': 0,
+    'std.pitch': 0,
+    'std.bank': 0,
+    'std.heading': 0
+  };
+  core.update(source, 0);
+  source['a2a.rotacc.x'] = 2;
+  const impulse = core.update(source, 0.02);
+  close(impulse.packet.ang_vel[0], 0.04, 1e-12);
+  assert.equal(impulse.diagnostics.angularFusion['ang_vel.0'].washoutActive, false);
+  source['a2a.rotacc.x'] = 0;
+  let result;
+  for (let index = 2; index <= 250; index += 1) {
+    result = core.update(source, index * 0.02);
+  }
+  assert.equal(result.diagnostics.angularFusion['ang_vel.0'].washoutActive, true);
+  assert(result.packet.ang_vel[0] < 0.004);
+});
+
+test('experimental residual washout preserves a weak rate confirmed by attitude motion', () => {
+  const config = buildDefaultConfig();
+  Object.values(config.channels).forEach((channel) => { channel.enabled = false; });
+  config.rotationFusion.correctionEnabled = false;
+  config.rotationFusion.residualWashoutEnabled = true;
+  config.rotationFusion.residualWashoutTauSeconds = 2;
+  config.channels['ang_vel.0'] = {
+    enabled: true,
+    sourceId: 'a2a.rotacc.x',
+    inputUnit: 'radps2',
+    operation: 'fuse',
+    invert: false,
+    scale: 1,
+    offset: 0
+  };
+  const core = new RouterCore(config);
+  core.update({ 'a2a.rotacc.x': 0, 'std.pitch': 0, 'std.bank': 0, 'std.heading': 0 }, 0);
+  core.update({ 'a2a.rotacc.x': 1, 'std.pitch': 0, 'std.bank': 0, 'std.heading': 0 }, 0.02);
+  let result;
+  for (let index = 2; index <= 250; index += 1) {
+    const time = index * 0.02;
+    result = core.update({
+      'a2a.rotacc.x': 0,
+      'std.pitch': 0.02 * (time - 0.02) / UNIT_DEFINITIONS.degrees.factor,
+      'std.bank': 0,
+      'std.heading': 0
+    }, time);
+  }
+  assert.equal(result.diagnostics.angularFusion['ang_vel.0'].washoutActive, false);
+  close(result.packet.ang_vel[0], 0.02, 0.002);
+});
+
 test('incompatible direct units are reported per channel', () => {
   const config = buildDefaultConfig();
   Object.values(config.channels).forEach((channel) => { channel.enabled = false; });
@@ -174,6 +353,7 @@ test('custom LVars are normalized and survive valid mappings', () => {
 
 test('supported calculus combinations are explicit', () => {
   assert.equal(operationCompatible('integrate', 'angularAcceleration', 'angularVelocity'), true);
+  assert.equal(operationCompatible('fuse', 'angularAcceleration', 'angularVelocity'), true);
   assert.equal(operationCompatible('direct', 'angularAcceleration', 'angularVelocity'), false);
   assert.equal(operationCompatible('differentiate', 'velocity', 'acceleration'), true);
 });
@@ -203,7 +383,7 @@ test('basic view exposes only relevant standard and A2A sources', () => {
     for (const rule of output.simpleSources) {
       assert.equal(sourceIds.has(rule.sourceId), true, `${output.id}: ${rule.sourceId}`);
       assert.equal(['std.', 'a2a.'].some((prefix) => rule.sourceId.startsWith(prefix)), true);
-      assert.equal(['direct', 'integrate'].includes(rule.operation), true);
+      assert.equal(['direct', 'integrate', 'fuse'].includes(rule.operation), true);
     }
   }
 });
@@ -230,7 +410,7 @@ test('legacy full default is migrated to the reduced basic output set', () => {
   legacy.channels['vel.0'].enabled = true;
   legacy.channels.gear_left.enabled = true;
   const normalized = normalizeConfig(legacy);
-  assert.equal(normalized.schemaVersion, 4);
+  assert.equal(normalized.schemaVersion, 6);
   assert.equal(normalized.expertMode, true);
   assert.equal(normalized.channels['acc.0'].enabled, true);
   assert.equal(normalized.channels['vel.0'].enabled, false);
@@ -251,15 +431,49 @@ test('schema v2 mappings migrate negative scales into the explicit invert flag',
   assert.equal(normalized.channels.yaw.scale, 1);
 });
 
-test('DCS gravity reference is a full attitude-dependent 1g vector', () => {
+test('schema v4 migration removes the known gravity workaround and upgrades A2A integration', () => {
+  const config = buildDefaultConfig();
+  config.schemaVersion = 4;
+  config.channels['acc.2'].offset = 2;
+  config.channels['ang_vel.0'].operation = 'integrate';
+  const normalized = normalizeConfig(config);
+  assert.equal(normalized.schemaVersion, 6);
+  assert.equal(normalized.channels['acc.2'].offset, 0);
+  assert.equal(normalized.channels['ang_vel.0'].operation, 'fuse');
+
+  config.channels['acc.2'].offset = 1.5;
+  assert.equal(normalizeConfig(config).channels['acc.2'].offset, 1.5);
+});
+
+test('A2A compensation keeps lateral and longitudinal signs with positive DCS resting load', () => {
   const level = gravityVector(0, 0, 1);
   close(level[0], 0);
   close(level[1], 0);
-  close(level[2], -1);
+  close(level[2], 1);
   const banked = gravityVector(0, Math.PI / 6, 1);
   close(banked[0], 0.5);
   close(banked[1], 0);
-  close(banked[2], -Math.sqrt(3) / 2);
+  close(banked[2], Math.sqrt(3) / 2);
+});
+
+test('real-flight A2A attitude share cancels without creating lateral or longitudinal acceleration', () => {
+  const config = buildDefaultConfig();
+  Object.values(config.channels).forEach((channel) => { channel.enabled = false; });
+  config.channels['acc.0'].enabled = true;
+  config.channels['acc.1'].enabled = true;
+  config.channels['acc.2'].enabled = true;
+  const reference = gravityReferenceAttitude({ 'std.pitch': 10, 'std.bank': 20 }, config.channels);
+  const compensation = gravityVector(reference.pitch, reference.roll, 1);
+  const result = new RouterCore(config).update({
+    'a2a.acc.x': -compensation[0] * 9.80665,
+    'a2a.acc.y': 0,
+    'a2a.acc.z': -compensation[1] * 9.80665,
+    'std.pitch': 10,
+    'std.bank': 20
+  }, 0);
+  close(result.packet.acc[0], 0);
+  close(result.packet.acc[1], 0);
+  close(result.packet.acc[2], compensation[2]);
 });
 
 test('gravity reference uses physical MSFS attitude independent of routed scaling and offset', () => {
@@ -341,9 +555,50 @@ test('gravity attitude remains subscribed when routed pitch and roll are disable
   assert.equal(sourceIds.includes('std.bank'), true);
 });
 
+test('optional attitude mix adds only sustained pitch and roll components', () => {
+  const config = buildDefaultConfig();
+  config.gravity.enabled = false;
+  config.attitudeMix.enabled = true;
+  config.attitudeMix.pitchMix = 1;
+  config.attitudeMix.rollMix = 0.5;
+  const result = new RouterCore(config).update({
+    'a2a.acc.x': 0,
+    'a2a.acc.y': 0,
+    'a2a.acc.z': 0,
+    'a2a.rotacc.x': 0,
+    'a2a.rotacc.y': 0,
+    'a2a.rotacc.z': 0,
+    'std.pitch': 10,
+    'std.bank': 20,
+    'std.heading': 0,
+    'std.alt.agl': 0,
+    'std.airspeed.ias': 0,
+    'a2a.stall': 0,
+    'a2a.engine.rpm': 0
+  }, 0);
+  const reference = gravityReferenceAttitude({ 'std.pitch': 10, 'std.bank': 20 }, config.channels);
+  const unitVector = gravityVector(reference.pitch, reference.roll, 1);
+  close(result.packet.acc[0], -unitVector[0] * 0.5);
+  close(result.packet.acc[1], -unitVector[1]);
+  close(result.packet.acc[2], 0);
+  close(result.diagnostics.attitudeMix.vectorG[2], 0);
+});
+
 test('DCS vectors keep a fixed shape when an individual axis is disabled', () => {
   const config = buildDefaultConfig();
   config.gravity.enabled = false;
+  config.channels['ang_vel.0'] = {
+    ...config.channels['ang_vel.0'],
+    sourceId: 'std.angular.body.x',
+    inputUnit: 'radps',
+    operation: 'direct'
+  };
+  config.channels['ang_vel.1'] = {
+    ...config.channels['ang_vel.1'],
+    sourceId: 'std.angular.body.z',
+    inputUnit: 'radps',
+    operation: 'direct'
+  };
   config.channels['ang_vel.2'].enabled = false;
   const result = new RouterCore(config).update({
     'a2a.acc.x': 0,
@@ -393,6 +648,30 @@ test('turbulence mixer adds only a bounded band-pass component to vertical accel
   assert(result.diagnostics.turbulence.extraG > 0);
   assert(result.diagnostics.turbulence.extraG < 0.2);
   assert(result.packet.acc[2] > 0.1);
+});
+
+test('enabling turbulence at a steady input starts without pitch or heave offset', () => {
+  const config = buildDefaultConfig();
+  Object.values(config.channels).forEach((channel) => { channel.enabled = false; });
+  config.gravity.enabled = false;
+  config.channels['acc.0'].enabled = true;
+  config.channels['acc.1'].enabled = true;
+  config.channels['acc.2'].enabled = true;
+  const core = new RouterCore(config);
+  const source = {
+    'a2a.acc.x': 1,
+    'a2a.acc.y': 3,
+    'a2a.acc.z': 2
+  };
+  const before = core.update(source, 0);
+  config.turbulence.enabled = true;
+  core.setConfig(config);
+  const after = core.update(source, 0.02);
+  close(after.packet.acc[0], before.packet.acc[0]);
+  close(after.packet.acc[1], before.packet.acc[1]);
+  close(after.packet.acc[2], before.packet.acc[2]);
+  close(after.diagnostics.turbulence.bandG, 0);
+  close(after.diagnostics.turbulence.extraG, 0);
 });
 
 test('turbulence is suppressed while filters settle after a telemetry gap', () => {

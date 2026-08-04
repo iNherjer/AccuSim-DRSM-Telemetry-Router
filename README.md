@@ -66,8 +66,12 @@ Telemetry Router ── mapping / unit conversion ──► DCS v2 JSON over UDP
 - Small web bootstrapper with automatic update support
 - Configurable UDP host, port, packet name, and sampling period
 - Atomic persistent JSON configuration
-- DCS-compatible 1 G gravity reference derived from unscaled physical MSFS
-  attitude; it follows output inversion but ignores scale and offset
+- Empirically validated A2A attitude compensation on lateral/longitudinal
+  acceleration plus the positive `+1 G` vertical resting load expected by DCS/DRSM
+- Optional pitch/roll attitude mix that deliberately restores a configurable
+  share of sustained platform tilt without changing heave
+- A2A angular-acceleration fusion with attitude-based drift correction and an
+  optional experimental residual washout
 - Optional turbulence mixer with four presets, band-pass, blend, gain, and soft G limit
 - Independently adjustable vertical-wind branch with source, mix, gain, and sign controls
 - Raw CSV diagnostics for A2A `AirframeShake`, vertical/horizontal panel shake,
@@ -86,23 +90,28 @@ Telemetry Router ── mapping / unit conversion ──► DCS v2 JSON over UDP
 | `acc[0]` lateral | `L:FM_BodyAccelerationX` | m/s² → G |
 | `acc[1]` longitudinal | `L:FM_BodyAccelerationZ` | m/s² → G |
 | `acc[2]` vertical | `L:FM_BodyAccelerationY` | m/s² → G |
-| `ang_vel[0]` pitch | `ROTATION VELOCITY BODY X` | rad/s |
-| `ang_vel[1]` roll | `ROTATION VELOCITY BODY Z` | rad/s |
-| `ang_vel[2]` yaw | `ROTATION VELOCITY BODY Y` | rad/s |
+| `ang_vel[0]` pitch | `L:FM_BodyRotationAccelerationX` | rad/s² → fused rad/s |
+| `ang_vel[1]` roll | `L:FM_BodyRotationAccelerationZ` | rad/s² → fused rad/s |
+| `ang_vel[2]` yaw | `L:FM_BodyRotationAccelerationY` | rad/s² → fused rad/s |
 | `pitch`, `roll`, `yaw` | standard MSFS orientation SimVars | degrees → radians |
 | `ias` | `AIRSPEED INDICATED` | knots → m/s |
 | `alt_agl` | `PLANE ALT ABOVE GROUND` | feet → metres |
 | `rpm_left`, `prop_rpm` | `L:Eng1_RPM` | RPM |
 
-The A2A body-acceleration LVars are centred around zero and do not include the
-DCS gravity reference. By default, the router adds a full attitude-dependent
-gravity vector. In level flight this is `[0, 0, -1] G`; pitch and roll rotate it
-across all three body axes so DRSM can apply its normal DCS gravity compensation.
-The reference always uses the physical MSFS pitch and bank values. Pitch/roll
-inversion defines its DCS axis direction, while scale and offset cannot distort
-the physical gravity magnitude.
-Disable this processor only when using an input that already contains the 1 G
-reference.
+Real A2A flight logs show an attitude-correlated share on the lateral and
+longitudinal FM acceleration axes, while the positive DCS/DRSM vertical resting
+load is missing. The enabled-by-default processor therefore neutralizes the
+observed lateral/longitudinal shares with their empirically confirmed signs and
+adds `+1 G` vertically. At level attitude the basis is `[0, 0, +1] G`; its
+compensation components change with pitch and bank. The reference always uses
+the physical MSFS attitude. Pitch/roll inversion defines its DCS axis direction,
+while scale and offset cannot distort the physical basis. Disable this processor
+only for an input that is already fully DCS-compatible.
+
+The optional attitude mix is off by default. It adds a configurable counter-share
+to the lateral/longitudinal compensation: `0%` keeps full A2A compensation, while
+`100%` restores the attitude-correlated share. This allows a sustained platform
+tilt during held pitch or bank without changing the vertical `+1 G` basis.
 
 The optional turbulence mixer leaves the original acceleration intact. It
 isolates a configurable fast band (default `0.7–5 Hz`) and blends only that
@@ -136,10 +145,14 @@ The `?` controls explain how mix, gain, cutoff frequencies, source choice, and
 the soft limit affect the output. Extreme settings can cause DRSM axis
 overallocation and should be approached gradually.
 
-The A2A rotation-acceleration LVars can be selected for comparison. Since DRSM
-expects angular velocity in `rad/s`, a `rad/s²` source is integrated only when
-the user explicitly selects that operation. The integration resets after a
-telemetry gap or configuration change to limit runaway drift.
+The default angular-rate mapping uses the A2A rotation-acceleration LVars. Since
+DRSM expects angular velocity in `rad/s`, the router integrates the fast Accu-Sim
+`rad/s²` signal and corrects only its slow drift using rates derived from the
+absolute MSFS attitude. The correction time constant is configurable. A separate
+experimental residual washout can return an unconfirmed small rate to zero while
+preserving motion that is still confirmed by changing aircraft attitude. Pure
+integration remains available in Expert mode for comparison. Integrators reset
+after telemetry gaps or configuration changes.
 
 ## Quick start
 

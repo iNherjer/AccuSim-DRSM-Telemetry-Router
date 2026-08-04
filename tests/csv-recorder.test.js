@@ -32,10 +32,26 @@ test('CSV recorder writes raw sources, routed outputs and turbulence diagnostics
             postGapRemainingSeconds: 0.73
           },
           gravity: {
-            vectorG: [0.1, 0.2, -0.97],
+            vectorG: [0.1, 0.2, 0.97],
             referencePitchRad: -0.1,
             referenceRollRad: 0.2,
             referenceValid: true
+          },
+          attitudeMix: { vectorG: [0.05, -0.04, 0] },
+          angularFusion: {
+            'ang_vel.0': {
+              sourceAccelerationRadps2: 0.2,
+              referenceRateRadps: 0.1,
+              predictionRadps: 0.12,
+              correctionRadps: -0.01,
+              correctionActive: true,
+              correctionTauSeconds: 1.25,
+              washoutCorrectionRadps: -0.001,
+              washoutActive: true,
+              washoutTauSeconds: 6,
+              outputRadps: 0.11,
+              referenceValid: true
+            }
           },
           turbulence: {
             sourceG: 0.12,
@@ -61,6 +77,9 @@ test('CSV recorder writes raw sources, routed outputs and turbulence diagnostics
     assert.match(text[0], /turbulence_wind_extra_g/);
     assert.match(text[0], /sample_dt_s/);
     assert.match(text[0], /gravity_reference_pitch_rad/);
+    assert.match(text[0], /attitude_mix_lateral_g/);
+    assert.match(text[0], /fusion_0_reference_rate_radps/);
+    assert.match(text[0], /fusion_0_washout_active/);
     assert.match(text[0], /turbulence_suppressed/);
     assert.match(text[1], /1\.2500000/);
     assert.match(text[1], /-0\.8500000/);

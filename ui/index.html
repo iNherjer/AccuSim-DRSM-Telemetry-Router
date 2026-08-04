@@ -104,25 +104,84 @@
     <section class="panel dynamics-panel">
       <div class="panel-heading">
         <div>
-          <p class="eyebrow" data-i18n="dynamics.eyebrow">DCS-BESCHLEUNIGUNG</p>
-          <h2 data-i18n="dynamics.title">Gravity Reference & Turbulenzmischer</h2>
+          <p class="eyebrow" data-i18n="dynamics.eyebrow">MOTION-AUFBEREITUNG</p>
+          <h2 data-i18n="dynamics.title">Gravity Reference, Lage, Drehrate & Turbulenz</h2>
         </div>
       </div>
       <div class="processor-grid">
-        <article class="processor-card">
-          <div class="processor-title-row">
-            <div>
-              <strong data-i18n="gravity.title">DCS-Gravitationsvektor</strong>
-              <small data-i18n="gravity.subtitle">Ergänzt die fehlende Ruhelast lageabhängig</small>
+        <div class="processor-stack">
+          <article class="processor-card">
+            <div class="processor-title-row">
+              <div>
+                <strong data-i18n="gravity.title">DCS-Gravitationsvektor</strong>
+                <small data-i18n="gravity.subtitle">Ergänzt die fehlende Ruhelast lageabhängig</small>
+              </div>
+              <label class="switch-label" data-i18n-title="tooltip.gravityEnabled"><input id="gravityEnabledInput" type="checkbox"><span data-i18n="gravity.active">Aktiv</span></label>
             </div>
-            <label class="switch-label"><input id="gravityEnabledInput" type="checkbox"><span data-i18n="gravity.active">Aktiv</span></label>
-          </div>
-          <label class="compact-setting"><span data-i18n="gravity.strength">Stärke (g)</span><input id="gravityStrengthInput" type="number" min="0" max="2" step="0.05"></label>
-          <div class="processor-live-row">
-            <span><small data-i18n="gravity.live">DCS Gravity [quer, längs, vertikal]</small><output id="gravityVectorLive">[0, 0, −1]</output></span>
-          </div>
-          <p class="hint" data-i18n="gravity.hint">Die A2A-FM-Werte sind um 0 zentriert. DCS liefert bei waagerechter Ruhelage einen 1-g-Vektor mit −1 g vertikal; Pitch und Roll drehen diesen Vektor mit.</p>
-        </article>
+            <label class="compact-setting">
+              <span class="setting-label"><span data-i18n="gravity.strength">Stärke (g)</span> <span class="help-tip" tabindex="0" role="note" data-i18n-tooltip="tooltip.gravityStrength">?</span></span>
+              <input id="gravityStrengthInput" type="number" min="0" max="2" step="0.05" data-i18n-title="tooltip.gravityStrength">
+            </label>
+            <div class="processor-live-row">
+              <span><small data-i18n="gravity.live">DCS Gravity [quer, längs, vertikal]</small><output id="gravityVectorLive">[0, 0, +1]</output></span>
+            </div>
+            <p class="hint" data-i18n="gravity.hint">Die A2A-FM-Werte sind um 0 zentriert. DCS liefert bei waagerechter Ruhelage einen 1-g-Vektor mit +1 g vertikal; Pitch und Roll drehen diesen Vektor mit.</p>
+          </article>
+
+          <article class="processor-card">
+            <div class="processor-title-row">
+              <div>
+                <strong data-i18n="attitudeMix.title">Lagebeimischung</strong>
+                <small data-i18n="attitudeMix.subtitle">Verstärkt die dauerhafte Pitch-/Roll-Neigung optional</small>
+              </div>
+              <label class="switch-label" data-i18n-title="tooltip.attitudeMixEnabled"><input id="attitudeMixEnabledInput" type="checkbox"><span data-i18n="attitudeMix.active">Aktiv</span></label>
+            </div>
+            <div class="attitude-mix-settings">
+              <label>
+                <span class="setting-label"><span data-i18n="attitudeMix.pitch">Pitch → längs (%)</span> <span class="help-tip" tabindex="0" role="note" data-i18n-tooltip="tooltip.attitudeMixPitch">?</span></span>
+                <input id="attitudeMixPitchInput" type="number" min="0" max="200" step="5" data-i18n-title="tooltip.attitudeMixPitch">
+              </label>
+              <label>
+                <span class="setting-label"><span data-i18n="attitudeMix.roll">Roll → quer (%)</span> <span class="help-tip" tabindex="0" role="note" data-i18n-tooltip="tooltip.attitudeMixRoll">?</span></span>
+                <input id="attitudeMixRollInput" type="number" min="0" max="200" step="5" data-i18n-title="tooltip.attitudeMixRoll">
+              </label>
+            </div>
+            <div class="processor-live-row">
+              <span><small data-i18n="attitudeMix.live">Zusatz [quer, längs]</small><output id="attitudeMixVectorLive">[0, 0] g</output></span>
+            </div>
+            <p class="hint" data-i18n="attitudeMix.hint">0 % lässt die regulären DCS-Werte unverändert; 100 % mischt den lageabhängigen Anteil einmal zusätzlich bei. Heave bleibt davon unberührt.</p>
+          </article>
+
+          <article class="processor-card rotation-card">
+            <div class="processor-title-row">
+              <div>
+                <strong data-i18n="rotationFusion.title">Drehraten-Stabilisierung</strong>
+                <small data-i18n="rotationFusion.subtitle">Begrenzt Drift der integrierten A2A-Drehbeschleunigung</small>
+              </div>
+            </div>
+            <div class="rotation-settings">
+              <div class="rotation-setting">
+                <label class="switch-label" data-i18n-title="tooltip.rotationCorrectionEnabled"><input id="rotationCorrectionEnabledInput" type="checkbox"><span data-i18n="rotationFusion.correction">Lagebasierte Driftkorrektur</span></label>
+                <label>
+                  <span class="setting-label"><span data-i18n="rotationFusion.correctionTime">Korrekturzeit (s)</span> <span class="help-tip" tabindex="0" role="note" data-i18n-tooltip="tooltip.rotationCorrectionTime">?</span></span>
+                  <input id="rotationCorrectionTauInput" type="number" min="0.25" max="20" step="0.25" data-i18n-title="tooltip.rotationCorrectionTime">
+                </label>
+              </div>
+              <div class="rotation-setting experimental-setting">
+                <label class="switch-label" data-i18n-title="tooltip.rotationWashoutEnabled"><input id="rotationWashoutEnabledInput" type="checkbox"><span data-i18n="rotationFusion.washout">Restwert-Washout (experimentell)</span></label>
+                <label>
+                  <span class="setting-label"><span data-i18n="rotationFusion.washoutTime">Rücklaufdauer (s)</span> <span class="help-tip" tabindex="0" role="note" data-i18n-tooltip="tooltip.rotationWashoutTime">?</span></span>
+                  <input id="rotationWashoutTauInput" type="number" min="1" max="60" step="0.5" data-i18n-title="tooltip.rotationWashoutTime">
+                </label>
+              </div>
+            </div>
+            <div class="rotation-live-grid">
+              <span><small data-i18n="rotationFusion.liveReference">Referenzrate [Pitch, Roll, Yaw]</small><output id="rotationReferenceLive">[0, 0, 0] rad/s</output></span>
+              <span><small data-i18n="rotationFusion.liveWashout">Restwert-Washout</small><output id="rotationWashoutLive">inaktiv</output></span>
+            </div>
+            <p class="hint" data-i18n="rotationFusion.hint">Der experimentelle Washout greift nur bei kleiner A2A-Drehbeschleunigung, nahezu stehender Lagereferenz und kleinem Restwert. Bestätigte schwache Drehungen bleiben erhalten.</p>
+          </article>
+        </div>
 
         <article class="processor-card turbulence-card">
           <div class="processor-title-row">
