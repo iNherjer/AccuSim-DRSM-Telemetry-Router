@@ -284,7 +284,7 @@ test('gravity reference uses physical MSFS attitude independent of routed scalin
     'a2a.engine.rpm': 0
   };
   const result = new RouterCore(config).update(sourceValues, 0);
-  const reference = gravityReferenceAttitude(sourceValues);
+  const reference = gravityReferenceAttitude(sourceValues, config.channels);
   close(reference.pitch, -Math.PI / 18);
   close(reference.roll, -Math.PI / 9);
   assert.equal(reference.valid, true);
@@ -295,6 +295,41 @@ test('gravity reference uses physical MSFS attitude independent of routed scalin
   close(result.diagnostics.gravity.referencePitchRad, -Math.PI / 18);
   close(result.diagnostics.gravity.referenceRollRad, -Math.PI / 9);
   assert.equal(result.diagnostics.gravity.referenceValid, true);
+});
+
+test('gravity reference follows routed attitude inversion without applying gain or offset', () => {
+  const config = buildDefaultConfig();
+  config.channels.pitch.invert = false;
+  config.channels.pitch.scale = 2;
+  config.channels.pitch.offset = 0.3;
+  config.channels.roll.invert = false;
+  config.channels.roll.scale = 2;
+  config.channels.roll.offset = -0.2;
+  const sourceValues = {
+    'a2a.acc.x': 0,
+    'a2a.acc.y': 0,
+    'a2a.acc.z': 0,
+    'std.angular.body.x': 0,
+    'std.angular.body.y': 0,
+    'std.angular.body.z': 0,
+    'std.pitch': 10,
+    'std.bank': -20,
+    'std.heading': 0,
+    'std.alt.agl': 0,
+    'std.airspeed.ias': 0,
+    'a2a.stall': 0,
+    'a2a.engine.rpm': 0
+  };
+  const result = new RouterCore(config).update(sourceValues, 0);
+  const reference = gravityReferenceAttitude(sourceValues, config.channels);
+  close(reference.pitch, Math.PI / 18);
+  close(reference.roll, -Math.PI / 9);
+  close(result.packet.pitch, Math.PI / 9 + 0.3);
+  close(result.packet.roll, -2 * Math.PI / 9 - 0.2);
+  const expectedGravity = gravityVector(Math.PI / 18, -Math.PI / 9, 1);
+  expectedGravity.forEach((value, index) => close(result.diagnostics.gravity.vectorG[index], value));
+  close(result.diagnostics.gravity.referencePitchRad, Math.PI / 18);
+  close(result.diagnostics.gravity.referenceRollRad, -Math.PI / 9);
 });
 
 test('gravity attitude remains subscribed when routed pitch and roll are disabled', () => {

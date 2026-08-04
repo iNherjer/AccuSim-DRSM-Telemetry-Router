@@ -67,7 +67,7 @@ Telemetry Router ── mapping / unit conversion ──► DCS v2 JSON over UDP
 - Configurable UDP host, port, packet name, and sampling period
 - Atomic persistent JSON configuration
 - DCS-compatible 1 G gravity reference derived from unscaled physical MSFS
-  attitude, independent of output scale, offset, or inversion
+  attitude; it follows output inversion but ignores scale and offset
 - Optional turbulence mixer with four presets, band-pass, blend, gain, and soft G limit
 - Independently adjustable vertical-wind branch with source, mix, gain, and sign controls
 - Raw CSV diagnostics for A2A `AirframeShake`, vertical/horizontal panel shake,
@@ -98,9 +98,9 @@ The A2A body-acceleration LVars are centred around zero and do not include the
 DCS gravity reference. By default, the router adds a full attitude-dependent
 gravity vector. In level flight this is `[0, 0, -1] G`; pitch and roll rotate it
 across all three body axes so DRSM can apply its normal DCS gravity compensation.
-The reference always uses the physical MSFS pitch and bank values, so changing
-the routed pitch/roll scale, offset, or inversion cannot create a false gravity
-component.
+The reference always uses the physical MSFS pitch and bank values. Pitch/roll
+inversion defines its DCS axis direction, while scale and offset cannot distort
+the physical gravity magnitude.
 Disable this processor only when using an input that already contains the 1 G
 reference.
 
