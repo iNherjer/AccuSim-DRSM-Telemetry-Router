@@ -13,7 +13,9 @@ test('SimConnect subscription changes only when required inputs change', () => {
   assert.equal(sourceSignature(config), initial);
 
   config.channels['acc.0'].sourceId = 'std.acc.body.x';
-  assert.notEqual(sourceSignature(config), initial);
+  // Both candidates are diagnostic comparison channels and are therefore
+  // already subscribed before the route changes.
+  assert.equal(sourceSignature(config), initial);
 
   const changed = sourceSignature(config);
   config.channels.gear_left.sourceId = 'std.gear.left';

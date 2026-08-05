@@ -66,12 +66,15 @@ Telemetry Router ── mapping / unit conversion ──► DCS v2 JSON over UDP
 - Small web bootstrapper with automatic update support
 - Configurable UDP host, port, packet name, and sampling period
 - Atomic persistent JSON configuration
-- Empirically validated A2A attitude compensation on lateral/longitudinal
-  acceleration plus the positive `+1 G` vertical resting load expected by DCS/DRSM
+- V2 motion mix enabled by default: standard `G FORCE` for heave, a drift-free
+  Standard/AccuSim pitch-rate fusion, and direct standard roll/yaw rates
+- One-click Legacy motion mix for comparison with the original all-A2A mapping
+- Automatic A2A attitude compensation when `L:FM_BodyAccelerationY` is selected;
+  it stays off for standard `G FORCE` so the `+1 G` resting load is not doubled
 - Optional pitch/roll attitude mix that deliberately restores a configurable
   share of sustained platform tilt without changing heave
-- A2A angular-acceleration fusion with attitude-based drift correction and an
-  optional experimental residual washout
+- Bias-corrected A2A pitch detail with configurable blend, standard anchor and
+  bias-learning time; Legacy A2A integration and residual washout remain available
 - Optional turbulence mixer with four presets, band-pass, blend, gain, and soft G limit
 - Independently adjustable vertical-wind branch with source, mix, gain, and sign controls
 - Raw CSV diagnostics for A2A `AirframeShake`, vertical/horizontal panel shake,
@@ -89,24 +92,22 @@ Telemetry Router ── mapping / unit conversion ──► DCS v2 JSON over UDP
 | --- | --- | --- |
 | `acc[0]` lateral | `L:FM_BodyAccelerationX` | m/s² → G |
 | `acc[1]` longitudinal | `L:FM_BodyAccelerationZ` | m/s² → G |
-| `acc[2]` vertical | `L:FM_BodyAccelerationY` | m/s² → G |
-| `ang_vel[0]` pitch | `L:FM_BodyRotationAccelerationX` | rad/s² → fused rad/s |
-| `ang_vel[1]` roll | `L:FM_BodyRotationAccelerationZ` | rad/s² → fused rad/s |
-| `ang_vel[2]` yaw | `L:FM_BodyRotationAccelerationY` | rad/s² → fused rad/s |
+| `acc[2]` vertical | `G FORCE` | G → G |
+| `ang_vel[0]` pitch | `ROTATION VELOCITY BODY X` + `L:FM_BodyRotationAccelerationX` | drift-free rad/s + bias-corrected A2A detail |
+| `ang_vel[1]` roll | `ROTATION VELOCITY BODY Z` | rad/s → rad/s |
+| `ang_vel[2]` yaw | `ROTATION VELOCITY BODY Y` | rad/s → rad/s |
 | `pitch`, `roll`, `yaw` | standard MSFS orientation SimVars | degrees → radians |
 | `ias` | `AIRSPEED INDICATED` | knots → m/s |
 | `alt_agl` | `PLANE ALT ABOVE GROUND` | feet → metres |
 | `rpm_left`, `prop_rpm` | `L:Eng1_RPM` | RPM |
 
-Real A2A flight logs show an attitude-correlated share on the lateral and
-longitudinal FM acceleration axes, while the positive DCS/DRSM vertical resting
-load is missing. The enabled-by-default processor therefore neutralizes the
-observed lateral/longitudinal shares with their empirically confirmed signs and
-adds `+1 G` vertically. At level attitude the basis is `[0, 0, +1] G`; its
-compensation components change with pitch and bank. The reference always uses
-the physical MSFS attitude. Pitch/roll inversion defines its DCS axis direction,
-while scale and offset cannot distort the physical basis. Disable this processor
-only for an input that is already fully DCS-compatible.
+V2 uses standard `G FORCE` as the vertical baseline because that source already
+contains the positive resting load expected by DCS/DRSM. Gravity compensation is
+therefore off in the V2 mapping. If `acc[2]` is changed to
+`L:FM_BodyAccelerationY`, the router automatically enables the A2A processor:
+it neutralizes the attitude-correlated lateral/longitudinal shares found in real
+flight logs and adds the missing `+1 G` vertical baseline. At level attitude the
+basis is `[0, 0, +1] G`; its compensation components change with pitch and bank.
 
 The optional attitude mix is off by default. It adds a configurable counter-share
 to the lateral/longitudinal compensation: `0%` keeps full A2A compensation, while
@@ -145,14 +146,14 @@ The `?` controls explain how mix, gain, cutoff frequencies, source choice, and
 the soft limit affect the output. Extreme settings can cause DRSM axis
 overallocation and should be approached gradually.
 
-The default angular-rate mapping uses the A2A rotation-acceleration LVars. Since
-DRSM expects angular velocity in `rad/s`, the router integrates the fast Accu-Sim
-`rad/s²` signal and corrects only its slow drift using rates derived from the
-absolute MSFS attitude. The correction time constant is configurable. A separate
-experimental residual washout can return an unconfirmed small rate to zero while
-preserving motion that is still confirmed by changing aircraft attitude. Pure
-integration remains available in Expert mode for comparison. Integrators reset
-after telemetry gaps or configuration changes.
+The default V2 pitch path starts with the direct, drift-free MSFS body rate. It
+learns the persistent offset of the A2A pitch angular acceleration and adds only
+its fast, bias-corrected detail at a configurable blend (55% by default). Roll
+and yaw use the direct standard body rates because the recorded standard and A2A
+motion were nearly identical on those axes, avoiding integration drift entirely.
+The Legacy switch restores A2A angular-acceleration fusion on all three axes,
+including attitude-based drift correction and the optional residual washout.
+Pure integration remains available in Expert mode for diagnostic comparison.
 
 ## Quick start
 
@@ -214,9 +215,10 @@ Chromium renderer receives no live telemetry snapshots. SimConnect processing
 and UDP output continue normally, and the UI receives one current snapshot when
 it is shown again.
 
-The default profile maps 14 output channels to 13 unique SimConnect sources and
-also samples 17 focused diagnostic candidates, with overlaps deduplicated. This
-results in 27 values per visual frame in the default configuration. Shared
+The default V2 profile maps 14 output channels and also samples 29 focused
+diagnostic candidates, with all overlaps and the additional pitch-rate anchor
+deduplicated. This results in 35 values per visual frame in the default
+configuration. Shared
 inputs such as `L:Eng1_RPM` are subscribed only once. Changing scale or offset
 does not reconnect SimConnect; changing an enabled channel's source or sampling
 period rebuilds the compact subscription automatically.

@@ -102,21 +102,25 @@
     </section>
 
     <section class="panel dynamics-panel">
-      <div class="panel-heading">
+      <div class="panel-heading dynamics-heading">
         <div>
           <p class="eyebrow" data-i18n="dynamics.eyebrow">MOTION-AUFBEREITUNG</p>
           <h2 data-i18n="dynamics.title">Gravity Reference, Lage, Drehrate & Turbulenz</h2>
         </div>
+        <button id="v2MixToggleButton" class="mode-button v2-mix-button" type="button" aria-pressed="false" data-i18n-title="motionMix.tooltip">
+          <span data-i18n="motionMix.v2">V2 Mix</span><small data-i18n="mapping.off">aus</small>
+        </button>
       </div>
+      <p id="motionMixHint" class="mode-hint" data-i18n="motionMix.legacyHint">Legacy: A2A-FM-Beschleunigungen und A2A-Drehbeschleunigungsfusion auf allen Achsen.</p>
       <div class="processor-grid">
         <div class="processor-stack">
-          <article class="processor-card">
+          <article class="processor-card expert-only-section">
             <div class="processor-title-row">
               <div>
                 <strong data-i18n="gravity.title">DCS-Gravitationsvektor</strong>
                 <small data-i18n="gravity.subtitle">Ergänzt die fehlende Ruhelast lageabhängig</small>
               </div>
-              <label class="switch-label" data-i18n-title="tooltip.gravityEnabled"><input id="gravityEnabledInput" type="checkbox"><span data-i18n="gravity.active">Aktiv</span></label>
+              <label class="switch-label" data-i18n-title="tooltip.gravityEnabled"><input id="gravityEnabledInput" type="checkbox" disabled><span data-i18n="gravity.auto">Automatisch</span></label>
             </div>
             <label class="compact-setting">
               <span class="setting-label"><span data-i18n="gravity.strength">Stärke (g)</span> <span class="help-tip" tabindex="0" role="note" data-i18n-tooltip="tooltip.gravityStrength">?</span></span>
@@ -155,11 +159,11 @@
           <article class="processor-card rotation-card">
             <div class="processor-title-row">
               <div>
-                <strong data-i18n="rotationFusion.title">Drehraten-Stabilisierung</strong>
-                <small data-i18n="rotationFusion.subtitle">Begrenzt Drift der integrierten A2A-Drehbeschleunigung</small>
+                <strong id="rotationFusionTitle" data-i18n="rotationFusion.title">Drehraten-Stabilisierung</strong>
+                <small id="rotationFusionSubtitle" data-i18n="rotationFusion.subtitle">Begrenzt Drift der integrierten A2A-Drehbeschleunigung</small>
               </div>
             </div>
-            <div class="rotation-settings">
+            <div class="rotation-settings legacy-fusion-settings">
               <div class="rotation-setting">
                 <label class="switch-label" data-i18n-title="tooltip.rotationCorrectionEnabled"><input id="rotationCorrectionEnabledInput" type="checkbox"><span data-i18n="rotationFusion.correction">Lagebasierte Driftkorrektur</span></label>
                 <label>
@@ -175,9 +179,28 @@
                 </label>
               </div>
             </div>
+            <div class="rotation-settings v2-fusion-settings">
+              <div class="rotation-setting">
+                <label>
+                  <span class="setting-label"><span data-i18n="rotationFusion.v2Detail">AccuSim-Details (%)</span> <span class="help-tip" tabindex="0" role="note" data-i18n-tooltip="tooltip.rotationV2Detail">?</span></span>
+                  <input id="rotationV2DetailInput" type="number" min="0" max="100" step="5" data-i18n-title="tooltip.rotationV2Detail">
+                </label>
+              </div>
+              <div class="rotation-setting expert-only-section">
+                <label>
+                  <span class="setting-label"><span data-i18n="rotationFusion.v2CorrectionTime">Standard-Anker (s)</span> <span class="help-tip" tabindex="0" role="note" data-i18n-tooltip="tooltip.rotationV2CorrectionTime">?</span></span>
+                  <input id="rotationV2CorrectionTauInput" type="number" min="0.1" max="5" step="0.05" data-i18n-title="tooltip.rotationV2CorrectionTime">
+                </label>
+                <label>
+                  <span class="setting-label"><span data-i18n="rotationFusion.v2BiasTime">Bias-Lernzeit (s)</span> <span class="help-tip" tabindex="0" role="note" data-i18n-tooltip="tooltip.rotationV2BiasTime">?</span></span>
+                  <input id="rotationV2BiasTauInput" type="number" min="0.5" max="20" step="0.25" data-i18n-title="tooltip.rotationV2BiasTime">
+                </label>
+              </div>
+            </div>
             <div class="rotation-live-grid">
               <span><small data-i18n="rotationFusion.liveReference">Referenzrate [Pitch, Roll, Yaw]</small><output id="rotationReferenceLive">[0, 0, 0] rad/s</output></span>
               <span><small data-i18n="rotationFusion.liveWashout">Restwert-Washout</small><output id="rotationWashoutLive">inaktiv</output></span>
+              <span class="v2-only"><small data-i18n="rotationFusion.liveV2Bias">V2 Pitch-Bias</small><output id="rotationV2BiasLive">0 rad/s²</output></span>
             </div>
             <p class="hint" data-i18n="rotationFusion.hint">Der experimentelle Washout greift nur bei kleiner A2A-Drehbeschleunigung, nahezu stehender Lagereferenz und kleinem Restwert. Bestätigte schwache Drehungen bleiben erhalten.</p>
           </article>

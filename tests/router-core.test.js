@@ -5,6 +5,7 @@ const test = require('node:test');
 const {
   BUILTIN_SOURCES,
   DIAGNOSTIC_SOURCE_IDS,
+  MOTION_MIX_PROFILES,
   OUTPUTS,
   SAFE_SOURCE_IDS,
   TURBULENCE_PRESETS,
@@ -27,6 +28,13 @@ const {
 
 function close(actual, expected, epsilon = 1e-9) {
   assert(Math.abs(actual - expected) <= epsilon, `expected ${expected}, got ${actual}`);
+}
+
+function applyMotionProfile(config, profile) {
+  for (const [outputId, channel] of Object.entries(profile.channels)) {
+    config.channels[outputId] = { ...channel };
+  }
+  return config;
 }
 
 test('turbulence presets increase monotonically from light to extreme', () => {
@@ -61,6 +69,7 @@ test('default mapping emits the validated essential Comanche channels', () => {
     'std.angular.body.x': 1,
     'std.angular.body.y': 2,
     'std.angular.body.z': 3,
+    'std.gforce': 2,
     'std.velocity.world.x': 10,
     'std.velocity.world.y': 20,
     'std.velocity.world.z': 30,
@@ -86,10 +95,10 @@ test('default mapping emits the validated essential Comanche channels', () => {
     'a2a.canopy': 50,
     'std.gear': 1
   }, 10);
-  close(result.packet.acc[0], 1 + Math.sin(-Math.PI / 9) * Math.cos(-Math.PI / 18));
-  close(result.packet.acc[1], 3 - Math.sin(-Math.PI / 18));
-  close(result.packet.acc[2], 2 + Math.cos(-Math.PI / 9) * Math.cos(-Math.PI / 18));
-  assert.deepEqual(result.packet.ang_vel, [0, 0, 0]);
+  close(result.packet.acc[0], 1);
+  close(result.packet.acc[1], 3);
+  close(result.packet.acc[2], 2);
+  assert.deepEqual(result.packet.ang_vel, [1, 3, 2]);
   close(result.packet.pitch, -Math.PI / 18);
   close(result.packet.roll, -Math.PI / 9);
   close(result.packet.yaw, -Math.PI / 2);
@@ -215,6 +224,75 @@ test('A2A yaw fusion follows the heading sign observed in A2A flight logs', () =
   }
   close(result.diagnostics.angularFusion['ang_vel.2'].referenceRateRadps, 0.15, 0.002);
   close(result.packet.ang_vel[2], 0.15, 0.01);
+});
+
+test('V2 pitch fusion starts bumpless and rejects a persistent A2A acceleration bias', () => {
+  const config = buildDefaultConfig();
+  Object.values(config.channels).forEach((channel) => { channel.enabled = false; });
+  config.channels['ang_vel.0'] = {
+    ...MOTION_MIX_PROFILES.v2.channels['ang_vel.0']
+  };
+  const core = new RouterCore(config);
+  let result;
+  for (let index = 0; index <= 250; index += 1) {
+    result = core.update({
+      'a2a.rotacc.x': 0.7,
+      'std.angular.body.x': 0
+    }, index * 0.02);
+  }
+  close(result.packet.ang_vel[0], 0, 1e-9);
+  close(result.diagnostics.angularFusion['ang_vel.0'].biasRadps2, 0.7, 1e-9);
+  assert.equal(result.diagnostics.angularFusion['ang_vel.0'].v2, true);
+
+  const impulse = core.update({
+    'a2a.rotacc.x': 2.7,
+    'std.angular.body.x': 0
+  }, 5.02);
+  assert(impulse.packet.ang_vel[0] > 0.01);
+  assert(impulse.packet.ang_vel[0] < 0.04);
+});
+
+test('V2 motion profile uses G FORCE and direct drift-free roll/yaw rates', () => {
+  const config = buildDefaultConfig();
+  for (const [outputId, channel] of Object.entries(MOTION_MIX_PROFILES.v2.channels)) {
+    config.channels[outputId] = { ...channel };
+  }
+  const normalized = normalizeConfig(config);
+  assert.equal(normalized.gravity.enabled, false);
+  assert.equal(normalized.channels['acc.2'].sourceId, 'std.gforce');
+  assert.equal(normalized.channels['ang_vel.0'].operation, 'fuse_v2');
+  assert.equal(normalized.channels['ang_vel.1'].operation, 'direct');
+  assert.equal(normalized.channels['ang_vel.2'].operation, 'direct');
+
+  const core = new RouterCore(normalized);
+  const result = core.update({
+    'a2a.acc.x': 0,
+    'a2a.acc.z': 0,
+    'std.gforce': 1.05,
+    'a2a.rotacc.x': 0.7,
+    'std.angular.body.x': 0.1,
+    'std.angular.body.z': 0.3,
+    'std.angular.body.y': -0.2
+  }, 0);
+  close(result.packet.acc[2], 1.05);
+  close(result.packet.ang_vel[0], 0.1);
+  close(result.packet.ang_vel[1], 0.3);
+  close(result.packet.ang_vel[2], -0.2);
+});
+
+test('gravity compensation follows the vertical source automatically', () => {
+  const a2a = applyMotionProfile(buildDefaultConfig(), MOTION_MIX_PROFILES.legacy);
+  a2a.gravity.enabled = false;
+  assert.equal(normalizeConfig(a2a).gravity.enabled, true);
+
+  const standardG = buildDefaultConfig();
+  standardG.channels['acc.2'] = { ...MOTION_MIX_PROFILES.v2.channels['acc.2'] };
+  standardG.gravity.enabled = true;
+  assert.equal(normalizeConfig(standardG).gravity.enabled, false);
+
+  const disabled = buildDefaultConfig();
+  disabled.channels['acc.2'].enabled = false;
+  assert.equal(normalizeConfig(disabled).gravity.enabled, false);
 });
 
 test('attitude drift correction can be disabled for a pure A2A integration comparison', () => {
@@ -354,6 +432,7 @@ test('custom LVars are normalized and survive valid mappings', () => {
 test('supported calculus combinations are explicit', () => {
   assert.equal(operationCompatible('integrate', 'angularAcceleration', 'angularVelocity'), true);
   assert.equal(operationCompatible('fuse', 'angularAcceleration', 'angularVelocity'), true);
+  assert.equal(operationCompatible('fuse_v2', 'angularAcceleration', 'angularVelocity'), true);
   assert.equal(operationCompatible('direct', 'angularAcceleration', 'angularVelocity'), false);
   assert.equal(operationCompatible('differentiate', 'velocity', 'acceleration'), true);
 });
@@ -410,7 +489,7 @@ test('legacy full default is migrated to the reduced basic output set', () => {
   legacy.channels['vel.0'].enabled = true;
   legacy.channels.gear_left.enabled = true;
   const normalized = normalizeConfig(legacy);
-  assert.equal(normalized.schemaVersion, 6);
+  assert.equal(normalized.schemaVersion, 8);
   assert.equal(normalized.expertMode, true);
   assert.equal(normalized.channels['acc.0'].enabled, true);
   assert.equal(normalized.channels['vel.0'].enabled, false);
@@ -432,17 +511,39 @@ test('schema v2 mappings migrate negative scales into the explicit invert flag',
 });
 
 test('schema v4 migration removes the known gravity workaround and upgrades A2A integration', () => {
-  const config = buildDefaultConfig();
+  const config = applyMotionProfile(buildDefaultConfig(), MOTION_MIX_PROFILES.legacy);
   config.schemaVersion = 4;
+  config.gravity.enabled = true;
   config.channels['acc.2'].offset = 2;
   config.channels['ang_vel.0'].operation = 'integrate';
   const normalized = normalizeConfig(config);
-  assert.equal(normalized.schemaVersion, 6);
+  assert.equal(normalized.schemaVersion, 8);
   assert.equal(normalized.channels['acc.2'].offset, 0);
-  assert.equal(normalized.channels['ang_vel.0'].operation, 'fuse');
+  assert.equal(normalized.channels['acc.2'].sourceId, 'std.gforce');
+  assert.equal(normalized.channels['ang_vel.0'].operation, 'fuse_v2');
 
   config.channels['acc.2'].offset = 1.5;
   assert.equal(normalizeConfig(config).channels['acc.2'].offset, 1.5);
+});
+
+test('schema v7 upgrades only an untouched Legacy motion mapping to V2', () => {
+  const legacy = applyMotionProfile(buildDefaultConfig(), MOTION_MIX_PROFILES.legacy);
+  legacy.schemaVersion = 7;
+  const upgraded = normalizeConfig(legacy);
+  assert.equal(upgraded.schemaVersion, 8);
+  assert.equal(upgraded.channels['acc.2'].sourceId, 'std.gforce');
+  assert.equal(upgraded.channels['ang_vel.0'].operation, 'fuse_v2');
+  assert.equal(upgraded.channels['ang_vel.1'].sourceId, 'std.angular.body.z');
+  assert.equal(upgraded.gravity.enabled, false);
+
+  const customized = applyMotionProfile(buildDefaultConfig(), MOTION_MIX_PROFILES.legacy);
+  customized.schemaVersion = 7;
+  customized.channels['acc.0'].scale = 0.8;
+  const preserved = normalizeConfig(customized);
+  assert.equal(preserved.channels['acc.0'].scale, 0.8);
+  assert.equal(preserved.channels['acc.2'].sourceId, 'a2a.acc.y');
+  assert.equal(preserved.channels['ang_vel.0'].operation, 'fuse');
+  assert.equal(preserved.gravity.enabled, true);
 });
 
 test('A2A compensation keeps lateral and longitudinal signs with positive DCS resting load', () => {
@@ -457,7 +558,7 @@ test('A2A compensation keeps lateral and longitudinal signs with positive DCS re
 });
 
 test('real-flight A2A attitude share cancels without creating lateral or longitudinal acceleration', () => {
-  const config = buildDefaultConfig();
+  const config = applyMotionProfile(buildDefaultConfig(), MOTION_MIX_PROFILES.legacy);
   Object.values(config.channels).forEach((channel) => { channel.enabled = false; });
   config.channels['acc.0'].enabled = true;
   config.channels['acc.1'].enabled = true;
@@ -477,7 +578,7 @@ test('real-flight A2A attitude share cancels without creating lateral or longitu
 });
 
 test('gravity reference uses physical MSFS attitude independent of routed scaling and offset', () => {
-  const config = buildDefaultConfig();
+  const config = applyMotionProfile(buildDefaultConfig(), MOTION_MIX_PROFILES.legacy);
   config.channels.pitch.scale = 2;
   config.channels.pitch.offset = 0.3;
   config.channels.roll.scale = 3;
@@ -512,7 +613,7 @@ test('gravity reference uses physical MSFS attitude independent of routed scalin
 });
 
 test('gravity reference follows routed attitude inversion without applying gain or offset', () => {
-  const config = buildDefaultConfig();
+  const config = applyMotionProfile(buildDefaultConfig(), MOTION_MIX_PROFILES.legacy);
   config.channels.pitch.invert = false;
   config.channels.pitch.scale = 2;
   config.channels.pitch.offset = 0.3;
@@ -547,7 +648,7 @@ test('gravity reference follows routed attitude inversion without applying gain 
 });
 
 test('gravity attitude remains subscribed when routed pitch and roll are disabled', () => {
-  const config = buildDefaultConfig();
+  const config = applyMotionProfile(buildDefaultConfig(), MOTION_MIX_PROFILES.legacy);
   config.channels.pitch.enabled = false;
   config.channels.roll.enabled = false;
   const sourceIds = requiredSources(config).map((source) => source.id);
@@ -557,7 +658,7 @@ test('gravity attitude remains subscribed when routed pitch and roll are disable
 
 test('optional attitude mix adds only sustained pitch and roll components', () => {
   const config = buildDefaultConfig();
-  config.gravity.enabled = false;
+  config.channels['acc.2'] = { ...MOTION_MIX_PROFILES.v2.channels['acc.2'] };
   config.attitudeMix.enabled = true;
   config.attitudeMix.pitchMix = 1;
   config.attitudeMix.rollMix = 0.5;
@@ -565,6 +666,7 @@ test('optional attitude mix adds only sustained pitch and roll components', () =
     'a2a.acc.x': 0,
     'a2a.acc.y': 0,
     'a2a.acc.z': 0,
+    'std.gforce': 0,
     'a2a.rotacc.x': 0,
     'a2a.rotacc.y': 0,
     'a2a.rotacc.z': 0,
@@ -619,7 +721,7 @@ test('DCS vectors keep a fixed shape when an individual axis is disabled', () =>
 });
 
 test('turbulence mixer adds only a bounded band-pass component to vertical acceleration', () => {
-  const config = buildDefaultConfig();
+  const config = applyMotionProfile(buildDefaultConfig(), MOTION_MIX_PROFILES.legacy);
   config.gravity.enabled = false;
   config.turbulence.enabled = true;
   config.turbulence.mix = 1;
@@ -676,7 +778,7 @@ test('enabling turbulence at a steady input starts without pitch or heave offset
 
 test('turbulence is suppressed while filters settle after a telemetry gap', () => {
   const config = buildDefaultConfig();
-  config.gravity.enabled = false;
+  config.channels['acc.2'] = { ...MOTION_MIX_PROFILES.v2.channels['acc.2'] };
   config.turbulence.enabled = true;
   config.turbulence.mix = 1;
   config.turbulence.gain = 3;
@@ -686,6 +788,7 @@ test('turbulence is suppressed while filters settle after a telemetry gap', () =
     'a2a.acc.x': 0,
     'a2a.acc.y': 0,
     'a2a.acc.z': 0,
+    'std.gforce': 0,
     'std.angular.body.x': 0,
     'std.angular.body.y': 0,
     'std.angular.body.z': 0,
@@ -699,6 +802,7 @@ test('turbulence is suppressed while filters settle after a telemetry gap', () =
   };
   core.update(sample, 0);
   sample['a2a.acc.y'] = 0.1 * 9.80665;
+  sample['std.gforce'] = 0.1;
   core.update(sample, 0.02);
 
   const afterGap = core.update(sample, 0.5);
@@ -707,6 +811,7 @@ test('turbulence is suppressed while filters settle after a telemetry gap', () =
   close(afterGap.diagnostics.timing.postGapRemainingSeconds, POST_GAP_TURBULENCE_SUPPRESSION_SECONDS);
 
   sample['a2a.acc.y'] = 0.8 * 9.80665;
+  sample['std.gforce'] = 0.8;
   const transient = core.update(sample, 0.52);
   assert(transient.diagnostics.turbulence.computedExtraG > 0);
   close(transient.diagnostics.turbulence.extraG, 0);
@@ -715,6 +820,7 @@ test('turbulence is suppressed while filters settle after a telemetry gap', () =
 
   for (let time = 0.54; time < 1.26; time += 0.02) core.update(sample, time);
   sample['a2a.acc.y'] = 0.9 * 9.80665;
+  sample['std.gforce'] = 0.9;
   const recovered = core.update(sample, 1.26);
   assert.equal(recovered.diagnostics.timing.postGapTurbulenceSuppressed, false);
   assert(recovered.diagnostics.turbulence.extraG > 0);
@@ -733,8 +839,8 @@ test('enabled channel and diagnostic sources are required and deduplicated', () 
   config.channels['acc.1'].enabled = false;
   const changed = requiredSources(config).map((entry) => entry.id);
   assert.equal(changed.includes('std.acc.body.x'), true);
-  assert.equal(changed.includes('a2a.acc.x'), false);
-  assert.equal(changed.includes('a2a.acc.z'), false);
+  assert.equal(changed.includes('a2a.acc.x'), true);
+  assert.equal(changed.includes('a2a.acc.z'), true);
   assert.equal(changed.filter((id) => id === 'a2a.engine.rpm').length, 1);
 });
 

@@ -16,7 +16,9 @@ const elements = Object.fromEntries([
   'attitudeMixPitchInput', 'attitudeMixRollInput', 'attitudeMixVectorLive',
   'rotationCorrectionEnabledInput', 'rotationCorrectionTauInput',
   'rotationWashoutEnabledInput', 'rotationWashoutTauInput',
-  'rotationReferenceLive', 'rotationWashoutLive',
+  'rotationV2DetailInput', 'rotationV2CorrectionTauInput', 'rotationV2BiasTauInput',
+  'rotationReferenceLive', 'rotationWashoutLive', 'rotationV2BiasLive',
+  'rotationFusionTitle', 'rotationFusionSubtitle',
   'turbulenceEnabledInput',
   'turbulenceSourceSelect', 'turbulenceMixInput', 'turbulenceGainInput',
   'turbulenceLowCutInput', 'turbulenceHighCutInput', 'turbulenceMaxExtraInput',
@@ -25,7 +27,7 @@ const elements = Object.fromEntries([
   'turbulenceSourceLive', 'turbulenceBandLive', 'turbulenceExtraLive',
   'turbulenceWindSourceLive', 'turbulenceWindBandLive', 'turbulenceWindExtraLive',
   'turbulenceFinalLive', 'turbulenceStatus', 'turbulencePresetState',
-  'languageSelect'
+  'languageSelect', 'v2MixToggleButton', 'motionMixHint'
 ].map((id) => [id, document.getElementById(id)]));
 
 let state = null;
@@ -259,6 +261,13 @@ function mappingOperationOptions(output, inputUnitId, selectedId) {
 
 function updateChannel(outputId, patch) {
   draftConfig.channels[outputId] = { ...draftConfig.channels[outputId], ...patch };
+  if (outputId === 'acc.2') {
+    const vertical = draftConfig.channels['acc.2'];
+    draftConfig.gravity.enabled = vertical.enabled === true && vertical.sourceId === 'a2a.acc.y';
+    renderDynamicsConfig();
+  } else if (outputId.startsWith('acc.') || outputId.startsWith('ang_vel.')) {
+    renderMotionMixState();
+  }
   queueSave();
 }
 
@@ -436,6 +445,44 @@ function renderTurbulencePresetState() {
     : t('turbulence.custom');
 }
 
+function motionMixProfileMatches(profileId) {
+  const profile = state?.catalog?.motionMixProfiles?.[profileId];
+  if (!profile?.channels || !draftConfig?.channels) return false;
+  return Object.entries(profile.channels).every(([outputId, expected]) => {
+    const channel = draftConfig.channels[outputId] || {};
+    return channel.sourceId === expected.sourceId && channel.operation === expected.operation;
+  });
+}
+
+function renderMotionMixState() {
+  const active = motionMixProfileMatches('v2');
+  document.body.classList.toggle('v2-mix-mode', active);
+  elements.v2MixToggleButton.setAttribute('aria-pressed', String(active));
+  elements.v2MixToggleButton.querySelector('small').textContent = active
+    ? t('mapping.on')
+    : t('mapping.off');
+  elements.motionMixHint.textContent = active ? t('motionMix.v2Hint') : t('motionMix.legacyHint');
+  elements.rotationFusionTitle.textContent = active
+    ? t('rotationFusion.v2Title')
+    : t('rotationFusion.title');
+  elements.rotationFusionSubtitle.textContent = active
+    ? t('rotationFusion.v2Subtitle')
+    : t('rotationFusion.subtitle');
+}
+
+function applyMotionMixProfile(profileId) {
+  const profile = state?.catalog?.motionMixProfiles?.[profileId];
+  if (!profile?.channels) return;
+  for (const [outputId, channel] of Object.entries(profile.channels)) {
+    draftConfig.channels[outputId] = clone(channel);
+  }
+  const vertical = draftConfig.channels['acc.2'];
+  draftConfig.gravity.enabled = vertical.enabled === true && vertical.sourceId === 'a2a.acc.y';
+  renderDynamicsConfig();
+  renderMappings();
+  queueSave(true);
+}
+
 function renderDynamicsConfig() {
   elements.gravityEnabledInput.checked = draftConfig.gravity?.enabled === true;
   elements.gravityStrengthInput.value = draftConfig.gravity?.strengthG ?? 1;
@@ -446,6 +493,9 @@ function renderDynamicsConfig() {
   elements.rotationCorrectionTauInput.value = draftConfig.rotationFusion?.correctionTauSeconds ?? 1.25;
   elements.rotationWashoutEnabledInput.checked = draftConfig.rotationFusion?.residualWashoutEnabled === true;
   elements.rotationWashoutTauInput.value = draftConfig.rotationFusion?.residualWashoutTauSeconds ?? 6;
+  elements.rotationV2DetailInput.value = Math.round(Number(draftConfig.rotationFusion?.v2DetailMix ?? 0.55) * 100);
+  elements.rotationV2CorrectionTauInput.value = draftConfig.rotationFusion?.v2CorrectionTauSeconds ?? 0.35;
+  elements.rotationV2BiasTauInput.value = draftConfig.rotationFusion?.v2BiasTauSeconds ?? 2.5;
   elements.turbulenceEnabledInput.checked = draftConfig.turbulence?.enabled === true;
   elements.turbulenceSourceSelect.replaceChildren(
     turbulenceSourceOptions(draftConfig.turbulence?.sourceId || 'a2a.acc.y')
@@ -466,6 +516,7 @@ function renderDynamicsConfig() {
   elements.turbulenceWindMixInput.value = Math.round(Number(draftConfig.turbulence?.windMix ?? 0.25) * 100);
   elements.turbulenceWindGainInput.value = draftConfig.turbulence?.windGain ?? 1;
   elements.turbulenceWindInvertInput.checked = draftConfig.turbulence?.windInvert === true;
+  renderMotionMixState();
   renderTurbulencePresetState();
 }
 
@@ -657,6 +708,8 @@ function renderLive(runtime = {}) {
   elements.rotationWashoutLive.textContent = washoutAxes.length
     ? t('rotationFusion.activeAxes', { axes: washoutAxes.join(', ') })
     : t('rotationFusion.inactive');
+  const v2PitchFusion = diagnostics.angularFusion?.['ang_vel.0'] || {};
+  elements.rotationV2BiasLive.textContent = `${numberText(v2PitchFusion.biasRadps2, 4)} rad/s²`;
   const turbulence = diagnostics.turbulence || {};
   const turbulenceWind = turbulence.wind || {};
   elements.turbulenceSourceLive.textContent = `${numberText(turbulence.sourceG, 4)} g`;
@@ -789,7 +842,6 @@ function bindNestedNumber(element, section, key, transform = Number) {
   });
 }
 
-bindNestedCheckbox(elements.gravityEnabledInput, 'gravity', 'enabled');
 bindNestedNumber(elements.gravityStrengthInput, 'gravity', 'strengthG');
 bindNestedCheckbox(elements.attitudeMixEnabledInput, 'attitudeMix', 'enabled');
 bindNestedNumber(elements.attitudeMixPitchInput, 'attitudeMix', 'pitchMix', (value) => Number(value) / 100);
@@ -798,6 +850,9 @@ bindNestedCheckbox(elements.rotationCorrectionEnabledInput, 'rotationFusion', 'c
 bindNestedNumber(elements.rotationCorrectionTauInput, 'rotationFusion', 'correctionTauSeconds');
 bindNestedCheckbox(elements.rotationWashoutEnabledInput, 'rotationFusion', 'residualWashoutEnabled');
 bindNestedNumber(elements.rotationWashoutTauInput, 'rotationFusion', 'residualWashoutTauSeconds');
+bindNestedNumber(elements.rotationV2DetailInput, 'rotationFusion', 'v2DetailMix', (value) => Number(value) / 100);
+bindNestedNumber(elements.rotationV2CorrectionTauInput, 'rotationFusion', 'v2CorrectionTauSeconds');
+bindNestedNumber(elements.rotationV2BiasTauInput, 'rotationFusion', 'v2BiasTauSeconds');
 bindNestedCheckbox(elements.turbulenceEnabledInput, 'turbulence', 'enabled');
 elements.turbulenceSourceSelect.addEventListener('change', () => {
   draftConfig.turbulence.sourceId = elements.turbulenceSourceSelect.value;
@@ -858,6 +913,10 @@ elements.expertToggleButton.addEventListener('click', () => {
   applyViewMode();
   renderMappings();
   queueSave();
+});
+elements.v2MixToggleButton.addEventListener('click', () => {
+  if (!draftConfig) return;
+  applyMotionMixProfile(motionMixProfileMatches('v2') ? 'legacy' : 'v2');
 });
 elements.rawToggleButton.addEventListener('click', () => {
   if (!draftConfig?.expertMode) return;

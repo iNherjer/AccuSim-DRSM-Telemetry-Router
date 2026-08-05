@@ -71,6 +71,7 @@ test('CSV recorder writes raw sources, routed outputs and turbulence diagnostics
     assert.equal(stopped.active, false);
     assert.equal(stopped.rows, 1);
     const text = fs.readFileSync(started.path, 'utf8').trim().split(/\r?\n/);
+    assert.equal(text[1].split(',').length, text[0].split(',').length);
     assert.match(text[0], /src_a2a_acc_y_mps2/);
     assert.match(text[0], /out_acc_2_g/);
     assert.match(text[0], /turbulence_extra_g/);
@@ -79,6 +80,8 @@ test('CSV recorder writes raw sources, routed outputs and turbulence diagnostics
     assert.match(text[0], /gravity_reference_pitch_rad/);
     assert.match(text[0], /attitude_mix_lateral_g/);
     assert.match(text[0], /fusion_0_reference_rate_radps/);
+    assert.match(text[0], /fusion_0_bias_radps2/);
+    assert.match(text[0], /fusion_0_detail_mix/);
     assert.match(text[0], /fusion_0_washout_active/);
     assert.match(text[0], /turbulence_suppressed/);
     assert.match(text[1], /1\.2500000/);

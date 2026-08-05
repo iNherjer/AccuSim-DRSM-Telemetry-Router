@@ -13,12 +13,12 @@ test('config store creates and atomically persists bridge configuration', () => 
     const store = new BridgeConfigStore({ dataDirectory: root });
     const initial = store.read();
     assert.equal(initial.port, 4135);
-    assert.equal(initial.schemaVersion, 6);
+    assert.equal(initial.schemaVersion, 8);
     assert.equal(initial.language, 'de');
     assert.equal(initial.expertMode, false);
     assert.equal(initial.unsafeMode, false);
     assert.equal(initial.skippedUpdateVersion, '');
-    assert.equal(initial.gravity.enabled, true);
+    assert.equal(initial.gravity.enabled, false);
     assert.equal(initial.gravity.strengthG, 1);
     assert.equal(initial.attitudeMix.enabled, false);
     assert.equal(initial.attitudeMix.pitchMix, 1);
@@ -27,6 +27,9 @@ test('config store creates and atomically persists bridge configuration', () => 
     assert.equal(initial.rotationFusion.correctionTauSeconds, 1.25);
     assert.equal(initial.rotationFusion.residualWashoutEnabled, false);
     assert.equal(initial.rotationFusion.residualWashoutTauSeconds, 6);
+    assert.equal(initial.rotationFusion.v2DetailMix, 0.55);
+    assert.equal(initial.rotationFusion.v2CorrectionTauSeconds, 0.35);
+    assert.equal(initial.rotationFusion.v2BiasTauSeconds, 2.5);
     assert.equal(initial.turbulence.enabled, false);
     assert.equal(fs.existsSync(path.join(root, 'bridge-config.json')), true);
     initial.host = '192.168.1.20';

@@ -16,6 +16,7 @@ const { BridgeConfigStore } = require('./lib/config-store');
 const {
   BUILTIN_SOURCES,
   GROUP_LABELS,
+  MOTION_MIX_PROFILES,
   OPERATION_COMPATIBILITY,
   OPERATIONS,
   OUTPUTS,
@@ -47,7 +48,7 @@ let configRevision = 1;
 function iconPath() {
   return app.isPackaged
     ? path.join(process.resourcesPath, 'assets', 'icon.png')
-    : path.resolve(__dirname, 'assets', 'icon.png');
+    : path.resolve(__dirname, '..', '..', 'icon-192.png');
 }
 
 function publicCatalog() {
@@ -56,6 +57,7 @@ function publicCatalog() {
     sources: allSources(config),
     outputs: OUTPUTS,
     groupLabels: GROUP_LABELS,
+    motionMixProfiles: MOTION_MIX_PROFILES,
     units: UNIT_DEFINITIONS,
     operations: OPERATIONS,
     operationCompatibility: OPERATION_COMPATIBILITY,
