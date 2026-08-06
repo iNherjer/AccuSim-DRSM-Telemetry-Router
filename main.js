@@ -33,8 +33,15 @@ const { TRANSLATIONS, translate } = require('./lib/i18n');
 const { TelemetryRuntime } = require('./lib/telemetry-runtime');
 const { UpdateController } = require('./lib/update-controller');
 const { shouldBroadcastToWindow } = require('./lib/window-visibility');
+const {
+  BridgeControlServer,
+  CONTROL_PROTOCOL_VERSION,
+  compactRuntimeState
+} = require('./lib/control-channel');
+const { parseLaunchOptions, secondInstanceAction } = require('./lib/launch-options');
 
 if (process.platform === 'win32') app.setAppUserModelId('de.vfrmultitool.accusim-drsm-router');
+const initialLaunchOptions = parseLaunchOptions(process.argv);
 const singleInstanceLock = app.requestSingleInstanceLock();
 
 let mainWindow = null;
@@ -43,7 +50,11 @@ let store = null;
 let config = null;
 let runtime = null;
 let updateController = null;
+let controlServer = null;
 let configRevision = 1;
+let launchMode = initialLaunchOptions.background ? 'background' : 'standalone';
+let processOwner = initialLaunchOptions.owner;
+const pendingLaunchArguments = [];
 
 function iconPath() {
   return app.isPackaged
@@ -88,7 +99,10 @@ function broadcastState(force = false) {
 }
 
 function showWindow() {
-  if (!mainWindow || mainWindow.isDestroyed()) return;
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    createWindow();
+    return;
+  }
   if (mainWindow.isMinimized()) mainWindow.restore();
   mainWindow.show();
   mainWindow.focus();
@@ -96,6 +110,7 @@ function showWindow() {
 }
 
 function createWindow() {
+  if (mainWindow && !mainWindow.isDestroyed()) return mainWindow;
   mainWindow = new BrowserWindow({
     width: 1480,
     height: 920,
@@ -140,10 +155,13 @@ function createWindow() {
   });
   mainWindow.on('close', (event) => {
     if (app.isQuitting) return;
+    if (launchMode === 'background') return;
     event.preventDefault();
     mainWindow.hide();
   });
+  mainWindow.on('closed', () => { mainWindow = null; });
   mainWindow.on('restore', () => broadcastState(true));
+  return mainWindow;
 }
 
 function updateTrayMenu() {
@@ -183,11 +201,81 @@ function updateTrayMenu() {
 }
 
 function createTray() {
+  if (tray && !tray.isDestroyed()) return tray;
   const image = nativeImage.createFromPath(iconPath()).resize({ width: 20, height: 20 });
   tray = new Tray(image);
   tray.setToolTip('AccuSim DRSM Telemetry Router');
   updateTrayMenu();
   tray.on('double-click', showWindow);
+  return tray;
+}
+
+function promoteToStandalone() {
+  launchMode = 'standalone';
+  processOwner = 'standalone';
+  createTray();
+}
+
+function compactUpdateState() {
+  const update = updateController?.publicState() || {};
+  return {
+    supported: update.supported === true,
+    phase: String(update.phase || 'idle'),
+    version: String(update.version || ''),
+    percent: Number(update.percent) || 0,
+    message: String(update.message || '')
+  };
+}
+
+function controlState() {
+  return {
+    protocolVersion: CONTROL_PROTOCOL_VERSION,
+    appVersion: app.getVersion(),
+    pid: process.pid,
+    mode: launchMode,
+    owner: processOwner,
+    runtime: compactRuntimeState(runtime?.publicState()),
+    update: compactUpdateState()
+  };
+}
+
+function quitFromControl() {
+  const result = { ok: true, quitting: true };
+  const timer = setTimeout(() => {
+    app.isQuitting = true;
+    runtime?.stop();
+    app.quit();
+  }, 35);
+  timer.unref?.();
+  return result;
+}
+
+function handleLaunchArguments(argv) {
+  if (!runtime) {
+    pendingLaunchArguments.push(argv);
+    return;
+  }
+  const action = secondInstanceAction(argv);
+  if (action.promoteToStandalone) promoteToStandalone();
+  if (action.start) runtime.start();
+  if (action.stop) runtime.stop();
+  if (action.showSettings) showWindow();
+}
+
+async function createControlServer() {
+  controlServer = new BridgeControlServer({
+    handlers: {
+      status: () => controlState(),
+      start: () => runtime.start(),
+      stop: () => runtime.stop(),
+      'show-settings': () => {
+        showWindow();
+        return { ok: true };
+      },
+      quit: () => quitFromControl()
+    }
+  });
+  await controlServer.listen();
 }
 
 function registerIpc() {
@@ -258,7 +346,7 @@ async function startApplication() {
   updateController.on('state', (update) => {
     updateTrayMenu();
     broadcastState(true);
-    if (update.phase === 'available') showWindow();
+    if (update.phase === 'available' && launchMode !== 'background') showWindow();
   });
   const previewUpdate = String(process.env.ACCUSIM_ROUTER_PREVIEW_UPDATE || '').trim();
   if (previewUpdate) {
@@ -275,8 +363,17 @@ async function startApplication() {
     });
   }
   registerIpc();
-  createWindow();
-  createTray();
+  await createControlServer();
+  if (launchMode === 'background') {
+    runtime.start();
+  } else {
+    createWindow();
+    createTray();
+  }
+  if (initialLaunchOptions.start) runtime.start();
+  if (initialLaunchOptions.stop) runtime.stop();
+  if (initialLaunchOptions.showSettings) showWindow();
+  for (const argv of pendingLaunchArguments.splice(0)) handleLaunchArguments(argv);
   broadcastState();
   if (updateController.publicState().supported) {
     const timer = setTimeout(() => updateController.check(), 1200);
@@ -287,12 +384,16 @@ async function startApplication() {
 if (!singleInstanceLock) {
   app.quit();
 } else {
-  app.on('second-instance', showWindow);
+  app.on('second-instance', (_event, commandLine) => handleLaunchArguments(commandLine));
   app.whenReady().then(startApplication);
-  app.on('activate', showWindow);
+  app.on('activate', () => {
+    promoteToStandalone();
+    showWindow();
+  });
   app.on('before-quit', () => {
     app.isQuitting = true;
     runtime?.stop();
+    void controlServer?.close();
   });
   app.on('window-all-closed', () => {
     // Windows-Tray-Anwendung: im Hintergrund weiterlaufen.

@@ -64,6 +64,12 @@ Telemetry Router ── mapping / unit conversion ──► DCS v2 JSON over UDP
 - Installed app checks for updates at startup and offers install or per-version skip
 - Download progress and an explicit restart action that stops the bridge safely
 - Small web bootstrapper with automatic update support
+- Optional VFR Multitool Tracker integration: install, update, start, stop, and
+  open the complete Bridge settings directly from the Tracker
+- True headless background mode for Tracker-managed sessions, using the same
+  telemetry engine and saved configuration without creating a second UI or tray icon
+- Local control channel with instance ownership, status reporting, and clean shutdown;
+  an existing standalone Bridge installation is detected and reused
 - Configurable UDP host, port, packet name, and sampling period
 - Atomic persistent JSON configuration
 - V2 motion mix enabled by default: standard `G FORCE` for heave, a drift-free
