@@ -38,6 +38,44 @@ test('CSV recorder writes raw sources, routed outputs and turbulence diagnostics
             referenceValid: true
           },
           attitudeMix: { vectorG: [0.05, -0.04, 0] },
+          groundForces: {
+            onGround: true,
+            valid: true,
+            blend: 0.75,
+            rawG: [0.2, -0.3],
+            filteredG: [0.18, -0.28],
+            unlimitedG: [0.18, -0.28],
+            limitedG: [0.17, -0.26],
+            appliedG: [0.1275, -0.195],
+            eligible: [true, true],
+            limited: [false, false]
+          },
+          shakeMixer: {
+            sources: {
+              airframe: {
+                raw: 0.2,
+                band: 0.1,
+                normalized: 0.4,
+                contributionG: [0.01, 0.02, 0.03]
+              },
+              vertical: {
+                raw: 0.04,
+                band: 0.02,
+                normalized: 0.4,
+                contributionG: [0, 0, 0.04]
+              },
+              horizontal: {
+                raw: 0.12,
+                band: 0.06,
+                normalized: 0.4,
+                contributionG: [0.04, 0, 0]
+              }
+            },
+            unlimitedG: [0.05, 0.02, 0.07],
+            extraG: [0.048, 0.019, 0.065],
+            appliedG: [0.048, 0.019, 0.065],
+            limited: [false, false, false]
+          },
           angularFusion: {
             'ang_vel.0': {
               sourceAccelerationRadps2: 0.2,
@@ -79,6 +117,13 @@ test('CSV recorder writes raw sources, routed outputs and turbulence diagnostics
     assert.match(text[0], /sample_dt_s/);
     assert.match(text[0], /gravity_reference_pitch_rad/);
     assert.match(text[0], /attitude_mix_lateral_g/);
+    assert.match(text[0], /ground_forces_blend/);
+    assert.match(text[0], /ground_forces_applied_longitudinal_g/);
+    assert.match(text[0], /ground_forces_lateral_eligible/);
+    assert.match(text[0], /shake_mixer_airframe_raw/);
+    assert.match(text[0], /shake_mixer_vertical_band/);
+    assert.match(text[0], /shake_mixer_horizontal_lateral_g/);
+    assert.match(text[0], /shake_mixer_applied_vertical_g/);
     assert.match(text[0], /fusion_0_reference_rate_radps/);
     assert.match(text[0], /fusion_0_bias_radps2/);
     assert.match(text[0], /fusion_0_detail_mix/);

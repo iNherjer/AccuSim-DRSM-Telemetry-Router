@@ -489,7 +489,7 @@ test('legacy full default is migrated to the reduced basic output set', () => {
   legacy.channels['vel.0'].enabled = true;
   legacy.channels.gear_left.enabled = true;
   const normalized = normalizeConfig(legacy);
-  assert.equal(normalized.schemaVersion, 8);
+  assert.equal(normalized.schemaVersion, 10);
   assert.equal(normalized.expertMode, true);
   assert.equal(normalized.channels['acc.0'].enabled, true);
   assert.equal(normalized.channels['vel.0'].enabled, false);
@@ -517,7 +517,7 @@ test('schema v4 migration removes the known gravity workaround and upgrades A2A 
   config.channels['acc.2'].offset = 2;
   config.channels['ang_vel.0'].operation = 'integrate';
   const normalized = normalizeConfig(config);
-  assert.equal(normalized.schemaVersion, 8);
+  assert.equal(normalized.schemaVersion, 10);
   assert.equal(normalized.channels['acc.2'].offset, 0);
   assert.equal(normalized.channels['acc.2'].sourceId, 'std.gforce');
   assert.equal(normalized.channels['ang_vel.0'].operation, 'fuse_v2');
@@ -530,7 +530,7 @@ test('schema v7 upgrades only an untouched Legacy motion mapping to V2', () => {
   const legacy = applyMotionProfile(buildDefaultConfig(), MOTION_MIX_PROFILES.legacy);
   legacy.schemaVersion = 7;
   const upgraded = normalizeConfig(legacy);
-  assert.equal(upgraded.schemaVersion, 8);
+  assert.equal(upgraded.schemaVersion, 10);
   assert.equal(upgraded.channels['acc.2'].sourceId, 'std.gforce');
   assert.equal(upgraded.channels['ang_vel.0'].operation, 'fuse_v2');
   assert.equal(upgraded.channels['ang_vel.1'].sourceId, 'std.angular.body.z');
@@ -684,6 +684,217 @@ test('optional attitude mix adds only sustained pitch and roll components', () =
   close(result.packet.acc[1], -unitVector[1]);
   close(result.packet.acc[2], 0);
   close(result.diagnostics.attitudeMix.vectorG[2], 0);
+});
+
+test('ground forces fade continuously into A2A on ground and out again in flight', () => {
+  const config = buildDefaultConfig();
+  Object.values(config.channels).forEach((channel) => { channel.enabled = false; });
+  config.channels['acc.0'] = { ...MOTION_MIX_PROFILES.v2.channels['acc.0'] };
+  config.channels['acc.1'] = { ...MOTION_MIX_PROFILES.v2.channels['acc.1'] };
+  config.groundForces.enabled = true;
+  config.groundForces.filterHz = 5;
+  config.groundForces.maxExtraG = 2;
+  config.groundForces.fadeInSeconds = 0.2;
+  config.groundForces.fadeOutSeconds = 0.4;
+  const core = new RouterCore(config);
+  const oneGFps2 = 9.80665 / 0.3048;
+  const source = {
+    'a2a.acc.x': 0.1 * 9.80665,
+    'a2a.acc.z': -0.2 * 9.80665,
+    'std.acc.body.x': 0.2 * oneGFps2,
+    'std.acc.body.z': -0.3 * oneGFps2,
+    'std.on_ground': 1
+  };
+
+  const first = core.update(source, 0);
+  close(first.packet.acc[0], 0.1);
+  close(first.packet.acc[1], -0.2);
+  close(first.diagnostics.groundForces.blend, 0);
+
+  let grounded;
+  for (let index = 1; index <= 20; index += 1) grounded = core.update(source, index * 0.02);
+  assert(grounded.diagnostics.groundForces.blend > 0.999);
+  const expectedLateral = 2 * Math.tanh(0.2 / 2);
+  const expectedLongitudinal = 2 * Math.tanh(-0.3 / 2);
+  close(grounded.packet.acc[0], 0.1 + expectedLateral * grounded.diagnostics.groundForces.blend, 1e-9);
+  close(grounded.packet.acc[1], -0.2 + expectedLongitudinal * grounded.diagnostics.groundForces.blend, 1e-9);
+
+  source['std.on_ground'] = 0;
+  source['std.acc.body.x'] = 5 * oneGFps2;
+  source['std.acc.body.z'] = 5 * oneGFps2;
+  const firstAirborne = core.update(source, 0.42);
+  assert(firstAirborne.diagnostics.groundForces.blend < grounded.diagnostics.groundForces.blend);
+  assert(firstAirborne.diagnostics.groundForces.blend > 0);
+  close(firstAirborne.diagnostics.groundForces.filteredG[0], 0.2, 1e-9);
+  close(firstAirborne.diagnostics.groundForces.filteredG[1], -0.3, 1e-9);
+
+  let airborne;
+  for (let index = 22; index <= 50; index += 1) airborne = core.update(source, index * 0.02);
+  assert(airborne.diagnostics.groundForces.blend < 0.002);
+  close(airborne.packet.acc[0], 0.1, 0.001);
+  close(airborne.packet.acc[1], -0.2, 0.001);
+
+  source['std.on_ground'] = 1;
+  const afterGap = core.update(source, 2);
+  assert.equal(afterGap.diagnostics.timing.gapDetected, true);
+  close(afterGap.diagnostics.groundForces.blend, 0);
+  close(afterGap.packet.acc[0], 0.1);
+  close(afterGap.packet.acc[1], -0.2);
+});
+
+test('ground force soft limit bounds spikes and respects channel scale and inversion', () => {
+  const config = buildDefaultConfig();
+  Object.values(config.channels).forEach((channel) => { channel.enabled = false; });
+  config.channels['acc.0'] = {
+    ...MOTION_MIX_PROFILES.v2.channels['acc.0'],
+    invert: true,
+    scale: 2,
+    offset: 0.5
+  };
+  config.groundForces.enabled = true;
+  config.groundForces.maxExtraG = 0.3;
+  config.groundForces.fadeInSeconds = 0.05;
+  const core = new RouterCore(config);
+  const source = {
+    'a2a.acc.x': 0,
+    'std.acc.body.x': 10 * 9.80665 / 0.3048,
+    'std.acc.body.z': 0,
+    'std.on_ground': 1
+  };
+  core.update(source, 0);
+  let result;
+  for (let index = 1; index <= 5; index += 1) result = core.update(source, index * 0.02);
+  assert.equal(result.diagnostics.groundForces.limited[0], true);
+  assert(result.diagnostics.groundForces.limitedG[0] <= 0.3);
+  assert(result.diagnostics.groundForces.limitedG[0] > 0.299);
+  assert(result.diagnostics.groundForces.appliedG[0] < -0.598);
+  // Offset belongs to the routed base channel and is deliberately not applied
+  // a second time to the ground supplement.
+  close(result.packet.acc[0], 0.5 + result.diagnostics.groundForces.appliedG[0]);
+});
+
+test('ground forces do not double-add a standard acceleration mapping', () => {
+  const config = buildDefaultConfig();
+  Object.values(config.channels).forEach((channel) => { channel.enabled = false; });
+  config.channels['acc.0'] = {
+    enabled: true,
+    sourceId: 'std.acc.body.x',
+    inputUnit: 'fps2',
+    operation: 'direct',
+    invert: false,
+    scale: 1,
+    offset: 0
+  };
+  config.groundForces.enabled = true;
+  config.groundForces.fadeInSeconds = 0.05;
+  const core = new RouterCore(config);
+  const source = {
+    'std.acc.body.x': 9.80665 / 0.3048,
+    'std.acc.body.z': 0,
+    'std.on_ground': 1
+  };
+  let result;
+  for (let index = 0; index <= 5; index += 1) result = core.update(source, index * 0.02);
+  close(result.packet.acc[0], 1);
+  assert.equal(result.diagnostics.groundForces.eligible[0], false);
+  close(result.diagnostics.groundForces.appliedG[0], 0);
+});
+
+function shakeMixerConfig() {
+  const config = buildDefaultConfig();
+  Object.values(config.channels).forEach((channel) => { channel.enabled = false; });
+  config.channels['acc.0'] = { ...MOTION_MIX_PROFILES.v2.channels['acc.0'] };
+  config.channels['acc.1'] = { ...MOTION_MIX_PROFILES.v2.channels['acc.1'] };
+  config.channels['acc.2'] = { ...MOTION_MIX_PROFILES.v2.channels['acc.2'] };
+  config.shakeMixer.enabled = true;
+  config.shakeMixer.sources.airframe.mixes = [0, 1, 0];
+  config.shakeMixer.sources.vertical.mixes = [0, 0, 1];
+  config.shakeMixer.sources.horizontal.mixes = [1, 0, 0];
+  return config;
+}
+
+function shakeSources(overrides = {}) {
+  return {
+    'a2a.acc.x': 0,
+    'a2a.acc.z': 0,
+    'std.gforce': 0,
+    'a2a.shake.airframe': 0,
+    'a2a.shake.panel.vertical': 0,
+    'a2a.shake.panel.horizontal': 0,
+    ...overrides
+  };
+}
+
+test('shake mixer subscribes all three LVars and routes its centered matrix by DCS axis', () => {
+  const config = shakeMixerConfig();
+  const requiredIds = new Set(requiredSources(config).map((source) => source.id));
+  assert.equal(requiredIds.has('a2a.shake.airframe'), true);
+  assert.equal(requiredIds.has('a2a.shake.panel.vertical'), true);
+  assert.equal(requiredIds.has('a2a.shake.panel.horizontal'), true);
+
+  const startupCore = new RouterCore(config);
+  const first = startupCore.update(shakeSources({
+    'a2a.shake.airframe': 0.25,
+    'a2a.shake.panel.vertical': 0.05,
+    'a2a.shake.panel.horizontal': 0.15
+  }), 0);
+  // The first sample establishes each source's local centre and must never
+  // kick the platform, even when an unsigned LVar starts above zero.
+  assert.deepEqual(first.diagnostics.shakeMixer.appliedG, [0, 0, 0]);
+
+  const core = new RouterCore(config);
+  core.update(shakeSources(), 0);
+  const routed = core.update(shakeSources({
+    'a2a.shake.airframe': 0.25,
+    'a2a.shake.panel.vertical': 0.05,
+    'a2a.shake.panel.horizontal': 0.15
+  }), 0.02);
+  assert(routed.diagnostics.shakeMixer.appliedG[0] > 0);
+  assert(routed.diagnostics.shakeMixer.appliedG[1] > 0);
+  assert(routed.diagnostics.shakeMixer.appliedG[2] > 0);
+  close(routed.packet.acc[0], routed.diagnostics.shakeMixer.appliedG[0]);
+  close(routed.packet.acc[1], routed.diagnostics.shakeMixer.appliedG[1]);
+  close(routed.packet.acc[2], routed.diagnostics.shakeMixer.appliedG[2]);
+});
+
+test('shake mixer removes DC offsets, supports inversion and resets without a gap impulse', () => {
+  const config = shakeMixerConfig();
+  config.shakeMixer.sources.vertical.invert = true;
+  const core = new RouterCore(config);
+  const baseline = shakeSources();
+  const step = shakeSources({ 'a2a.shake.panel.vertical': 0.05 });
+  core.update(baseline, 0);
+  let result = core.update(step, 0.02);
+  assert(result.packet.acc[2] < 0);
+
+  for (let index = 2; index <= 200; index += 1) {
+    result = core.update(step, index * 0.02);
+  }
+  assert(Math.abs(result.packet.acc[2]) < 1e-8);
+
+  const afterGap = core.update(step, 5);
+  assert.equal(afterGap.diagnostics.timing.gapDetected, true);
+  close(afterGap.packet.acc[2], 0);
+  close(afterGap.diagnostics.shakeMixer.sources.vertical.band, 0);
+});
+
+test('shake mixer soft-limits the sum of multiple sources on every axis', () => {
+  const config = shakeMixerConfig();
+  config.shakeMixer.strengthG = 0.5;
+  config.shakeMixer.maxExtraG = 0.03;
+  for (const source of Object.values(config.shakeMixer.sources)) source.mixes = [2, 2, 2];
+  const core = new RouterCore(config);
+  core.update(shakeSources(), 0);
+  const result = core.update(shakeSources({
+    'a2a.shake.airframe': 2.5,
+    'a2a.shake.panel.vertical': 0.5,
+    'a2a.shake.panel.horizontal': 1.5
+  }), 0.02);
+  for (let index = 0; index < 3; index += 1) {
+    assert.equal(result.diagnostics.shakeMixer.limited[index], true);
+    assert(result.diagnostics.shakeMixer.appliedG[index] <= 0.03);
+    assert(result.diagnostics.shakeMixer.appliedG[index] > 0.029);
+  }
 });
 
 test('DCS vectors keep a fixed shape when an individual axis is disabled', () => {

@@ -19,6 +19,21 @@ const elements = Object.fromEntries([
   'rotationV2DetailInput', 'rotationV2CorrectionTauInput', 'rotationV2BiasTauInput',
   'rotationReferenceLive', 'rotationWashoutLive', 'rotationV2BiasLive',
   'rotationFusionTitle', 'rotationFusionSubtitle',
+  'groundForcesEnabledInput', 'groundForcesLateralMixInput',
+  'groundForcesLongitudinalMixInput', 'groundForcesFilterInput',
+  'groundForcesMaxExtraInput', 'groundForcesFadeInInput', 'groundForcesFadeOutInput',
+  'groundForcesStateLive', 'groundForcesBlendLive', 'groundForcesRawLive',
+  'groundForcesFilteredLive', 'groundForcesAppliedLive', 'groundForcesStatus',
+  'shakeMixerEnabledInput', 'shakeMixerStrengthInput', 'shakeMixerCenterInput',
+  'shakeMixerSmoothingInput', 'shakeMixerMaxExtraInput',
+  'shakeAirframeInvertInput', 'shakeAirframeLateralInput',
+  'shakeAirframeLongitudinalInput', 'shakeAirframeVerticalInput',
+  'shakeVerticalInvertInput', 'shakeVerticalLateralInput',
+  'shakeVerticalLongitudinalInput', 'shakeVerticalVerticalInput',
+  'shakeHorizontalInvertInput', 'shakeHorizontalLateralInput',
+  'shakeHorizontalLongitudinalInput', 'shakeHorizontalVerticalInput',
+  'shakeAirframeBandLive', 'shakeVerticalBandLive', 'shakeHorizontalBandLive',
+  'shakeMixerExtraLive', 'shakeMixerStatus',
   'turbulenceEnabledInput',
   'turbulenceSourceSelect', 'turbulenceMixInput', 'turbulenceGainInput',
   'turbulenceLowCutInput', 'turbulenceHighCutInput', 'turbulenceMaxExtraInput',
@@ -496,6 +511,29 @@ function renderDynamicsConfig() {
   elements.rotationV2DetailInput.value = Math.round(Number(draftConfig.rotationFusion?.v2DetailMix ?? 0.55) * 100);
   elements.rotationV2CorrectionTauInput.value = draftConfig.rotationFusion?.v2CorrectionTauSeconds ?? 0.35;
   elements.rotationV2BiasTauInput.value = draftConfig.rotationFusion?.v2BiasTauSeconds ?? 2.5;
+  elements.groundForcesEnabledInput.checked = draftConfig.groundForces?.enabled === true;
+  elements.groundForcesLateralMixInput.value = Math.round(Number(draftConfig.groundForces?.lateralMix ?? 1) * 100);
+  elements.groundForcesLongitudinalMixInput.value = Math.round(Number(draftConfig.groundForces?.longitudinalMix ?? 1) * 100);
+  elements.groundForcesFilterInput.value = draftConfig.groundForces?.filterHz ?? 5;
+  elements.groundForcesMaxExtraInput.value = draftConfig.groundForces?.maxExtraG ?? 0.6;
+  elements.groundForcesFadeInInput.value = draftConfig.groundForces?.fadeInSeconds ?? 0.35;
+  elements.groundForcesFadeOutInput.value = draftConfig.groundForces?.fadeOutSeconds ?? 1;
+  elements.shakeMixerEnabledInput.checked = draftConfig.shakeMixer?.enabled === true;
+  elements.shakeMixerStrengthInput.value = draftConfig.shakeMixer?.strengthG ?? 0.08;
+  elements.shakeMixerCenterInput.value = draftConfig.shakeMixer?.centerHz ?? 0.8;
+  elements.shakeMixerSmoothingInput.value = draftConfig.shakeMixer?.smoothingHz ?? 12;
+  elements.shakeMixerMaxExtraInput.value = draftConfig.shakeMixer?.maxExtraG ?? 0.15;
+  for (const [key, prefix] of [
+    ['airframe', 'shakeAirframe'],
+    ['vertical', 'shakeVertical'],
+    ['horizontal', 'shakeHorizontal']
+  ]) {
+    const source = draftConfig.shakeMixer?.sources?.[key] || {};
+    elements[`${prefix}InvertInput`].checked = source.invert === true;
+    ['Lateral', 'Longitudinal', 'Vertical'].forEach((axis, index) => {
+      elements[`${prefix}${axis}Input`].value = Math.round(Number(source.mixes?.[index] || 0) * 100);
+    });
+  }
   elements.turbulenceEnabledInput.checked = draftConfig.turbulence?.enabled === true;
   elements.turbulenceSourceSelect.replaceChildren(
     turbulenceSourceOptions(draftConfig.turbulence?.sourceId || 'a2a.acc.y')
@@ -710,6 +748,51 @@ function renderLive(runtime = {}) {
     : t('rotationFusion.inactive');
   const v2PitchFusion = diagnostics.angularFusion?.['ang_vel.0'] || {};
   elements.rotationV2BiasLive.textContent = `${numberText(v2PitchFusion.biasRadps2, 4)} rad/s²`;
+  const groundForces = diagnostics.groundForces || {};
+  const groundForcesEnabled = draftConfig.groundForces?.enabled === true;
+  elements.groundForcesStateLive.textContent = !groundForcesEnabled
+    ? t('groundForces.offState')
+    : (groundForces.valid
+        ? t(groundForces.onGround ? 'groundForces.ground' : 'groundForces.flight')
+        : t('groundForces.waiting'));
+  elements.groundForcesBlendLive.textContent = `${numberText(Number(groundForces.blend || 0) * 100, 1)} %`;
+  elements.groundForcesRawLive.textContent = `[${(groundForces.rawG || [0, 0]).map((value) => numberText(value, 3)).join(', ')}] g`;
+  elements.groundForcesFilteredLive.textContent = `[${(groundForces.limitedG || [0, 0]).map((value) => numberText(value, 3)).join(', ')}] g`;
+  elements.groundForcesAppliedLive.textContent = `[${(groundForces.appliedG || [0, 0]).map((value) => numberText(value, 3)).join(', ')}] g`;
+  const groundForcesError = runtime.channelErrors?.groundForces || '';
+  const ineligibleAxes = ['acc.0', 'acc.1'].filter((_outputId, index) => (
+    groundForcesEnabled && groundForces.valid && groundForces.eligible?.[index] !== true
+  ));
+  elements.groundForcesStatus.classList.toggle('error', Boolean(groundForcesError));
+  elements.groundForcesStatus.textContent = groundForcesError || (!groundForcesEnabled
+    ? t('groundForces.off')
+    : (!groundForces.valid
+        ? t('groundForces.waitingHint')
+        : (ineligibleAxes.length
+            ? t('groundForces.ineligible', { axes: ineligibleAxes.join(', ') })
+            : t('groundForces.on', { blend: numberText(Number(groundForces.blend || 0) * 100, 1) }))));
+  const shakeMixer = diagnostics.shakeMixer || {};
+  const shakeSources = shakeMixer.sources || {};
+  elements.shakeAirframeBandLive.textContent = numberText(shakeSources.airframe?.band, 4);
+  elements.shakeVerticalBandLive.textContent = numberText(shakeSources.vertical?.band, 4);
+  elements.shakeHorizontalBandLive.textContent = numberText(shakeSources.horizontal?.band, 4);
+  elements.shakeMixerExtraLive.textContent = `[${(shakeMixer.appliedG || [0, 0, 0]).map((value) => numberText(value, 4)).join(', ')}] g`;
+  const shakeMixerEnabled = draftConfig.shakeMixer?.enabled === true;
+  const shakeMixerError = runtime.channelErrors?.shakeMixer || '';
+  const limitedShakeAxes = (shakeMixer.limited || []).reduce((axes, limited, index) => {
+    if (limited) axes.push(['acc.0', 'acc.1', 'acc.2'][index]);
+    return axes;
+  }, []);
+  elements.shakeMixerStatus.classList.toggle('error', Boolean(shakeMixerError));
+  elements.shakeMixerStatus.textContent = shakeMixerError || (!shakeMixerEnabled
+    ? t('shakeMixer.off')
+    : (!shakeMixer.valid
+        ? t('shakeMixer.waiting')
+        : t('shakeMixer.on', {
+            limit: limitedShakeAxes.length
+              ? t('shakeMixer.limited', { axes: limitedShakeAxes.join(', ') })
+              : ''
+          })));
   const turbulence = diagnostics.turbulence || {};
   const turbulenceWind = turbulence.wind || {};
   elements.turbulenceSourceLive.textContent = `${numberText(turbulence.sourceG, 4)} g`;
@@ -853,6 +936,43 @@ bindNestedNumber(elements.rotationWashoutTauInput, 'rotationFusion', 'residualWa
 bindNestedNumber(elements.rotationV2DetailInput, 'rotationFusion', 'v2DetailMix', (value) => Number(value) / 100);
 bindNestedNumber(elements.rotationV2CorrectionTauInput, 'rotationFusion', 'v2CorrectionTauSeconds');
 bindNestedNumber(elements.rotationV2BiasTauInput, 'rotationFusion', 'v2BiasTauSeconds');
+bindNestedCheckbox(elements.groundForcesEnabledInput, 'groundForces', 'enabled');
+bindNestedNumber(elements.groundForcesLateralMixInput, 'groundForces', 'lateralMix', (value) => Number(value) / 100);
+bindNestedNumber(elements.groundForcesLongitudinalMixInput, 'groundForces', 'longitudinalMix', (value) => Number(value) / 100);
+bindNestedNumber(elements.groundForcesFilterInput, 'groundForces', 'filterHz');
+bindNestedNumber(elements.groundForcesMaxExtraInput, 'groundForces', 'maxExtraG');
+bindNestedNumber(elements.groundForcesFadeInInput, 'groundForces', 'fadeInSeconds');
+bindNestedNumber(elements.groundForcesFadeOutInput, 'groundForces', 'fadeOutSeconds');
+bindNestedCheckbox(elements.shakeMixerEnabledInput, 'shakeMixer', 'enabled');
+bindNestedNumber(elements.shakeMixerStrengthInput, 'shakeMixer', 'strengthG');
+bindNestedNumber(elements.shakeMixerCenterInput, 'shakeMixer', 'centerHz');
+bindNestedNumber(elements.shakeMixerSmoothingInput, 'shakeMixer', 'smoothingHz');
+bindNestedNumber(elements.shakeMixerMaxExtraInput, 'shakeMixer', 'maxExtraG');
+
+function bindShakeSourceCheckbox(element, sourceKey) {
+  element.addEventListener('change', () => {
+    draftConfig.shakeMixer.sources[sourceKey].invert = element.checked;
+    queueSave();
+  });
+}
+
+function bindShakeSourceMix(element, sourceKey, axisIndex) {
+  element.addEventListener('change', () => {
+    draftConfig.shakeMixer.sources[sourceKey].mixes[axisIndex] = Number(element.value) / 100;
+    queueSave();
+  });
+}
+
+for (const [key, prefix] of [
+  ['airframe', 'shakeAirframe'],
+  ['vertical', 'shakeVertical'],
+  ['horizontal', 'shakeHorizontal']
+]) {
+  bindShakeSourceCheckbox(elements[`${prefix}InvertInput`], key);
+  ['Lateral', 'Longitudinal', 'Vertical'].forEach((axis, index) => {
+    bindShakeSourceMix(elements[`${prefix}${axis}Input`], key, index);
+  });
+}
 bindNestedCheckbox(elements.turbulenceEnabledInput, 'turbulence', 'enabled');
 elements.turbulenceSourceSelect.addEventListener('change', () => {
   draftConfig.turbulence.sourceId = elements.turbulenceSourceSelect.value;

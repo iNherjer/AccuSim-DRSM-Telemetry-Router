@@ -206,6 +206,110 @@
           </article>
         </div>
 
+        <div class="processor-stack">
+        <article class="processor-card ground-force-card">
+          <div class="processor-title-row">
+            <div>
+              <strong data-i18n="groundForces.title">Bodenkräfte</strong>
+              <small data-i18n="groundForces.subtitle">Ergänzt AccuSim am Boden um gefilterte MSFS-Kräfte</small>
+            </div>
+            <label class="switch-label" data-i18n-title="tooltip.groundForcesEnabled"><input id="groundForcesEnabledInput" type="checkbox"><span data-i18n="groundForces.active">Aktiv</span></label>
+          </div>
+          <div class="ground-force-settings">
+            <label>
+              <span class="setting-label"><span data-i18n="groundForces.lateralMix">Querkraft-Mix (%)</span> <span class="help-tip" tabindex="0" role="note" data-i18n-tooltip="tooltip.groundForcesLateralMix">?</span></span>
+              <input id="groundForcesLateralMixInput" type="number" min="0" max="200" step="5" data-i18n-title="tooltip.groundForcesLateralMix">
+            </label>
+            <label>
+              <span class="setting-label"><span data-i18n="groundForces.longitudinalMix">Längskraft-Mix (%)</span> <span class="help-tip" tabindex="0" role="note" data-i18n-tooltip="tooltip.groundForcesLongitudinalMix">?</span></span>
+              <input id="groundForcesLongitudinalMixInput" type="number" min="0" max="200" step="5" data-i18n-title="tooltip.groundForcesLongitudinalMix">
+            </label>
+            <label>
+              <span class="setting-label"><span data-i18n="groundForces.filter">Glättung (Hz)</span> <span class="help-tip" tabindex="0" role="note" data-i18n-tooltip="tooltip.groundForcesFilter">?</span></span>
+              <input id="groundForcesFilterInput" type="number" min="0.5" max="20" step="0.5" data-i18n-title="tooltip.groundForcesFilter">
+            </label>
+            <label>
+              <span class="setting-label"><span data-i18n="groundForces.softLimit">Soft-Limit je Achse (g)</span> <span class="help-tip" tabindex="0" role="note" data-i18n-tooltip="tooltip.groundForcesLimit">?</span></span>
+              <input id="groundForcesMaxExtraInput" type="number" min="0.01" max="2" step="0.05" data-i18n-title="tooltip.groundForcesLimit">
+            </label>
+            <label>
+              <span class="setting-label"><span data-i18n="groundForces.fadeIn">Einblenden Boden (s)</span> <span class="help-tip" tabindex="0" role="note" data-i18n-tooltip="tooltip.groundForcesFadeIn">?</span></span>
+              <input id="groundForcesFadeInInput" type="number" min="0.05" max="5" step="0.05" data-i18n-title="tooltip.groundForcesFadeIn">
+            </label>
+            <label>
+              <span class="setting-label"><span data-i18n="groundForces.fadeOut">Ausblenden Flug (s)</span> <span class="help-tip" tabindex="0" role="note" data-i18n-tooltip="tooltip.groundForcesFadeOut">?</span></span>
+              <input id="groundForcesFadeOutInput" type="number" min="0.05" max="5" step="0.05" data-i18n-title="tooltip.groundForcesFadeOut">
+            </label>
+          </div>
+          <div class="ground-force-live-grid">
+            <span><small data-i18n="groundForces.liveState">Flugzustand</small><output id="groundForcesStateLive">—</output></span>
+            <span><small data-i18n="groundForces.liveBlend">Aktive Mischung</small><output id="groundForcesBlendLive">0 %</output></span>
+            <span><small data-i18n="groundForces.liveRaw">Standard roh [quer, längs]</small><output id="groundForcesRawLive">[0, 0] g</output></span>
+            <span><small data-i18n="groundForces.liveFiltered">Gefiltert/begrenzt</small><output id="groundForcesFilteredLive">[0, 0] g</output></span>
+            <span><small data-i18n="groundForces.liveApplied">Tatsächlich beigemischt</small><output id="groundForcesAppliedLive">[0, 0] g</output></span>
+          </div>
+          <p id="groundForcesStatus" class="hint" data-i18n="groundForces.off">Aus: AccuSim liefert Quer- und Längsbeschleunigung unverändert.</p>
+        </article>
+
+        <article class="processor-card shake-mixer-card">
+          <div class="processor-title-row">
+            <div>
+              <strong data-i18n="shakeMixer.title">Shake-Mischer</strong>
+              <small data-i18n="shakeMixer.subtitle">Macht AccuSim-Vibrationen und Bodenstöße auf den Motion-Achsen spürbar</small>
+            </div>
+            <label class="switch-label" data-i18n-title="tooltip.shakeMixerEnabled"><input id="shakeMixerEnabledInput" type="checkbox"><span data-i18n="shakeMixer.active">Aktiv</span></label>
+          </div>
+          <div class="shake-common-settings">
+            <label>
+              <span class="setting-label"><span data-i18n="shakeMixer.strength">Effektstärke (g)</span> <span class="help-tip" tabindex="0" role="note" data-i18n-tooltip="tooltip.shakeMixerStrength">?</span></span>
+              <input id="shakeMixerStrengthInput" type="number" min="0" max="0.5" step="0.01" data-i18n-title="tooltip.shakeMixerStrength">
+            </label>
+            <label>
+              <span class="setting-label"><span data-i18n="shakeMixer.center">Zentrierung (Hz)</span> <span class="help-tip" tabindex="0" role="note" data-i18n-tooltip="tooltip.shakeMixerCenter">?</span></span>
+              <input id="shakeMixerCenterInput" type="number" min="0.05" max="10" step="0.05" data-i18n-title="tooltip.shakeMixerCenter">
+            </label>
+            <label>
+              <span class="setting-label"><span data-i18n="shakeMixer.smoothing">Glättung (Hz)</span> <span class="help-tip" tabindex="0" role="note" data-i18n-tooltip="tooltip.shakeMixerSmoothing">?</span></span>
+              <input id="shakeMixerSmoothingInput" type="number" min="0.1" max="20" step="0.5" data-i18n-title="tooltip.shakeMixerSmoothing">
+            </label>
+            <label>
+              <span class="setting-label"><span data-i18n="shakeMixer.softLimit">Soft-Limit je Achse (g)</span> <span class="help-tip" tabindex="0" role="note" data-i18n-tooltip="tooltip.shakeMixerLimit">?</span></span>
+              <input id="shakeMixerMaxExtraInput" type="number" min="0.01" max="1" step="0.01" data-i18n-title="tooltip.shakeMixerLimit">
+            </label>
+          </div>
+          <div class="shake-matrix" role="group" aria-label="Shake-Achsenmatrix" data-i18n-aria="shakeMixer.matrixAria">
+            <div class="shake-matrix-header"><span data-i18n="shakeMixer.source">AccuSim-Quelle</span><span data-i18n="shakeMixer.invert">Inv.</span><span data-i18n="shakeMixer.lateral">Quer (%)</span><span data-i18n="shakeMixer.longitudinal">Längs (%)</span><span data-i18n="shakeMixer.vertical">Heave (%)</span></div>
+            <div class="shake-matrix-row">
+              <span><strong>Airframe Shake</strong><small>L:AirframeShake</small></span>
+              <label class="shake-invert" data-i18n-title="tooltip.shakeMixerInvert"><input id="shakeAirframeInvertInput" type="checkbox"><span class="sr-only" data-i18n="shakeMixer.invert">Invertieren</span></label>
+              <input id="shakeAirframeLateralInput" type="number" min="0" max="200" step="5" data-i18n-title="tooltip.shakeMixerAxisMix">
+              <input id="shakeAirframeLongitudinalInput" type="number" min="0" max="200" step="5" data-i18n-title="tooltip.shakeMixerAxisMix">
+              <input id="shakeAirframeVerticalInput" type="number" min="0" max="200" step="5" data-i18n-title="tooltip.shakeMixerAxisMix">
+            </div>
+            <div class="shake-matrix-row">
+              <span><strong>Panel Vertical Shake</strong><small>L:PanelVerticalShake</small></span>
+              <label class="shake-invert" data-i18n-title="tooltip.shakeMixerInvert"><input id="shakeVerticalInvertInput" type="checkbox"><span class="sr-only" data-i18n="shakeMixer.invert">Invertieren</span></label>
+              <input id="shakeVerticalLateralInput" type="number" min="0" max="200" step="5" data-i18n-title="tooltip.shakeMixerAxisMix">
+              <input id="shakeVerticalLongitudinalInput" type="number" min="0" max="200" step="5" data-i18n-title="tooltip.shakeMixerAxisMix">
+              <input id="shakeVerticalVerticalInput" type="number" min="0" max="200" step="5" data-i18n-title="tooltip.shakeMixerAxisMix">
+            </div>
+            <div class="shake-matrix-row">
+              <span><strong>Panel Horizontal Shake</strong><small>L:PanelHorizontalShake</small></span>
+              <label class="shake-invert" data-i18n-title="tooltip.shakeMixerInvert"><input id="shakeHorizontalInvertInput" type="checkbox"><span class="sr-only" data-i18n="shakeMixer.invert">Invertieren</span></label>
+              <input id="shakeHorizontalLateralInput" type="number" min="0" max="200" step="5" data-i18n-title="tooltip.shakeMixerAxisMix">
+              <input id="shakeHorizontalLongitudinalInput" type="number" min="0" max="200" step="5" data-i18n-title="tooltip.shakeMixerAxisMix">
+              <input id="shakeHorizontalVerticalInput" type="number" min="0" max="200" step="5" data-i18n-title="tooltip.shakeMixerAxisMix">
+            </div>
+          </div>
+          <div class="shake-live-grid">
+            <span><small data-i18n="shakeMixer.liveAirframe">Airframe Band</small><output id="shakeAirframeBandLive">—</output></span>
+            <span><small data-i18n="shakeMixer.liveVertical">Vertical Band</small><output id="shakeVerticalBandLive">—</output></span>
+            <span><small data-i18n="shakeMixer.liveHorizontal">Horizontal Band</small><output id="shakeHorizontalBandLive">—</output></span>
+            <span><small data-i18n="shakeMixer.liveExtra">Zusatz [quer, längs, Heave]</small><output id="shakeMixerExtraLive">[0, 0, 0] g</output></span>
+          </div>
+          <p id="shakeMixerStatus" class="hint" data-i18n="shakeMixer.off">Aus: Shake-LVars werden nur aufgezeichnet und nicht auf Motion-Achsen gemischt.</p>
+        </article>
+
         <article class="processor-card turbulence-card">
           <div class="processor-title-row">
             <div>
@@ -288,6 +392,7 @@
           </div>
           <p id="turbulenceStatus" class="hint">Aus: Die A2A-Beschleunigung wird unverändert weitergegeben.</p>
         </article>
+        </div>
       </div>
     </section>
 

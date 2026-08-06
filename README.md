@@ -75,6 +75,12 @@ Telemetry Router ── mapping / unit conversion ──► DCS v2 JSON over UDP
   share of sustained platform tilt without changing heave
 - Bias-corrected A2A pitch detail with configurable blend, standard anchor and
   bias-learning time; Legacy A2A integration and residual washout remain available
+- Optional ground-force mixer adds filtered standard lateral/longitudinal body
+  acceleration to the AccuSim base only while on the ground, with independent
+  blends, soft limits and smooth takeoff/touchdown transitions
+- Optional shake mixer routes `L:AirframeShake`, `L:PanelVerticalShake`, and
+  `L:PanelHorizontalShake` independently to lateral, longitudinal, and heave
+  acceleration with a 0–200% matrix, inversion, centering, smoothing, and limits
 - Optional turbulence mixer with four presets, band-pass, blend, gain, and soft G limit
 - Independently adjustable vertical-wind branch with source, mix, gain, and sign controls
 - Raw CSV diagnostics for A2A `AirframeShake`, vertical/horizontal panel shake,
@@ -114,6 +120,15 @@ to the lateral/longitudinal compensation: `0%` keeps full A2A compensation, whil
 `100%` restores the attitude-correlated share. This allows a sustained platform
 tilt during held pitch or bank without changing the vertical `+1 G` basis.
 
+The optional ground-force mixer addresses the weak AccuSim lateral and
+longitudinal cues observed during takeoff roll, braking, and ground turns. It
+low-pass filters standard `ACCELERATION BODY X/Z`, applies independent mix and
+soft-limit controls, and adds the result only to direct AccuSim `acc[0]/acc[1]`
+mappings. `SIM ON GROUND` drives a continuous exponential blend: the last ground
+sample fades out after liftoff instead of allowing airborne standard acceleration
+to replace AccuSim. A channel already using standard acceleration receives no
+second copy.
+
 The optional turbulence mixer leaves the original acceleration intact. It
 isolates a configurable fast band (default `0.7–5 Hz`) and blends only that
 component into vertical acceleration. A second optional branch differentiates
@@ -125,11 +140,16 @@ default for safe initial testing. After a telemetry gap longer than `250 ms`,
 the filter state is reset and only the added turbulence component is suppressed
 for `750 ms` while normal flight-model telemetry continues to be sent.
 
-The A2A shake LVars are recorded without conversion because their unit, neutral
-value, and range are not yet established. They are not forwarded to DRSM or
-treated as acceleration. Once validated against logs, they can act as a
-turbulence gate or intensity envelope while acceleration and wind continue to
-provide the physical heave direction and magnitude.
+The optional shake mixer keeps all three dimensionless A2A signals separate from
+the ground-force and turbulence processors. It normalizes each source against a
+conservative reference level and subtracts a slowly tracked centre, so an
+unsigned or constant shake value cannot create a persistent platform offset.
+The resulting impulses pass through a user-configurable 3×3 matrix into DCS
+lateral, longitudinal, and heave acceleration, then through a symmetrical soft
+limit per axis. The safe default routing uses Panel Vertical for heave, Panel
+Horizontal for lateral motion, and a weaker Airframe contribution on all axes;
+the entire processor is off by default. Raw values, centred bands, normalized
+signals, individual contributions, and applied output are recorded in CSV.
 
 Four presets provide repeatable starting points. Selecting one enables the
 mixer and copies its values into the normal controls; every value can still be
