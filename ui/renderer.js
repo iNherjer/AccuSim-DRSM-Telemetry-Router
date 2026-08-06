@@ -19,11 +19,13 @@ const elements = Object.fromEntries([
   'rotationV2DetailInput', 'rotationV2CorrectionTauInput', 'rotationV2BiasTauInput',
   'rotationReferenceLive', 'rotationWashoutLive', 'rotationV2BiasLive',
   'rotationFusionTitle', 'rotationFusionSubtitle',
-  'groundForcesEnabledInput', 'groundForcesLateralMixInput',
+  'groundForcesEnabledInput', 'groundForcesAccelerationCompensationInput',
+  'groundForcesHeaveStabilizationInput', 'groundForcesLateralMixInput',
   'groundForcesLongitudinalMixInput', 'groundForcesFilterInput',
   'groundForcesMaxExtraInput', 'groundForcesFadeInInput', 'groundForcesFadeOutInput',
   'groundForcesStateLive', 'groundForcesBlendLive', 'groundForcesRawLive',
-  'groundForcesFilteredLive', 'groundForcesAppliedLive', 'groundForcesStatus',
+  'groundForcesFilteredLive', 'groundForcesAppliedLive', 'groundHeaveBlendLive',
+  'groundHeaveAppliedLive', 'groundForcesStatus',
   'shakeMixerEnabledInput', 'shakeMixerStrengthInput', 'shakeMixerCenterInput',
   'shakeMixerSmoothingInput', 'shakeMixerMaxExtraInput',
   'shakeAirframeInvertInput', 'shakeAirframeLateralInput',
@@ -512,6 +514,8 @@ function renderDynamicsConfig() {
   elements.rotationV2CorrectionTauInput.value = draftConfig.rotationFusion?.v2CorrectionTauSeconds ?? 0.35;
   elements.rotationV2BiasTauInput.value = draftConfig.rotationFusion?.v2BiasTauSeconds ?? 2.5;
   elements.groundForcesEnabledInput.checked = draftConfig.groundForces?.enabled === true;
+  elements.groundForcesAccelerationCompensationInput.checked = draftConfig.groundForces?.accelerationCompensationEnabled !== false;
+  elements.groundForcesHeaveStabilizationInput.checked = draftConfig.groundForces?.heaveStabilizationEnabled !== false;
   elements.groundForcesLateralMixInput.value = Math.round(Number(draftConfig.groundForces?.lateralMix ?? 1) * 100);
   elements.groundForcesLongitudinalMixInput.value = Math.round(Number(draftConfig.groundForces?.longitudinalMix ?? 1) * 100);
   elements.groundForcesFilterInput.value = draftConfig.groundForces?.filterHz ?? 5;
@@ -759,6 +763,8 @@ function renderLive(runtime = {}) {
   elements.groundForcesRawLive.textContent = `[${(groundForces.rawG || [0, 0]).map((value) => numberText(value, 3)).join(', ')}] g`;
   elements.groundForcesFilteredLive.textContent = `[${(groundForces.limitedG || [0, 0]).map((value) => numberText(value, 3)).join(', ')}] g`;
   elements.groundForcesAppliedLive.textContent = `[${(groundForces.appliedG || [0, 0]).map((value) => numberText(value, 3)).join(', ')}] g`;
+  elements.groundHeaveBlendLive.textContent = `${numberText(Number(groundForces.heave?.blend || 0) * 100, 1)} %`;
+  elements.groundHeaveAppliedLive.textContent = `${numberText(groundForces.heave?.appliedG || 0, 3)} g`;
   const groundForcesError = runtime.channelErrors?.groundForces || '';
   const ineligibleAxes = ['acc.0', 'acc.1'].filter((_outputId, index) => (
     groundForcesEnabled && groundForces.valid && groundForces.eligible?.[index] !== true
@@ -937,6 +943,8 @@ bindNestedNumber(elements.rotationV2DetailInput, 'rotationFusion', 'v2DetailMix'
 bindNestedNumber(elements.rotationV2CorrectionTauInput, 'rotationFusion', 'v2CorrectionTauSeconds');
 bindNestedNumber(elements.rotationV2BiasTauInput, 'rotationFusion', 'v2BiasTauSeconds');
 bindNestedCheckbox(elements.groundForcesEnabledInput, 'groundForces', 'enabled');
+bindNestedCheckbox(elements.groundForcesAccelerationCompensationInput, 'groundForces', 'accelerationCompensationEnabled');
+bindNestedCheckbox(elements.groundForcesHeaveStabilizationInput, 'groundForces', 'heaveStabilizationEnabled');
 bindNestedNumber(elements.groundForcesLateralMixInput, 'groundForces', 'lateralMix', (value) => Number(value) / 100);
 bindNestedNumber(elements.groundForcesLongitudinalMixInput, 'groundForces', 'longitudinalMix', (value) => Number(value) / 100);
 bindNestedNumber(elements.groundForcesFilterInput, 'groundForces', 'filterHz');

@@ -71,17 +71,22 @@ Telemetry Router ── mapping / unit conversion ──► DCS v2 JSON over UDP
 - One-click Legacy motion mix for comparison with the original all-A2A mapping
 - Automatic A2A attitude compensation when `L:FM_BodyAccelerationY` is selected;
   it stays off for standard `G FORCE` so the `+1 G` resting load is not doubled
-- Optional pitch/roll attitude mix that deliberately restores a configurable
-  share of sustained platform tilt without changing heave
+- Optional pitch/roll attitude mix up to 500% that deliberately restores a
+  configurable share of sustained platform tilt without changing heave
 - Bias-corrected A2A pitch detail with configurable blend, standard anchor and
   bias-learning time; Legacy A2A integration and residual washout remain available
 - Optional ground-force mixer adds filtered standard lateral/longitudinal body
   acceleration to the AccuSim base only while on the ground, with independent
   blends, soft limits and smooth takeoff/touchdown transitions
+- Ground acceleration compensation anchors slow cues to actual world-velocity
+  change, rejecting static propeller thrust against held brakes while keeping
+  real acceleration, braking, turns and fast surface impacts
+- Ground heave stabilization blends continuously from
+  `1 G + L:FM_BodyAccelerationY` to standard `G FORCE` after liftoff
 - Optional shake mixer routes `L:AirframeShake`, `L:PanelVerticalShake`, and
   `L:PanelHorizontalShake` independently to lateral, longitudinal, and heave
   acceleration with a 0–200% matrix, inversion, centering, smoothing, and limits
-- Optional turbulence mixer with four presets, band-pass, blend, gain, and soft G limit
+- Optional turbulence mixer with five presets, band-pass, blend, gain, and soft G limit
 - Independently adjustable vertical-wind branch with source, mix, gain, and sign controls
 - Raw CSV diagnostics for A2A `AirframeShake`, vertical/horizontal panel shake,
   and the experimental `CameraHeight` value
@@ -127,7 +132,18 @@ soft-limit controls, and adds the result only to direct AccuSim `acc[0]/acc[1]`
 mappings. `SIM ON GROUND` drives a continuous exponential blend: the last ground
 sample fades out after liftoff instead of allowing airborne standard acceleration
 to replace AccuSim. A channel already using standard acceleration receives no
-second copy.
+second copy. Its DCS lateral sign is corrected so a left ground turn produces
+the platform's expected rightward counter-tilt.
+
+Two subordinate options are enabled by default whenever the ground-force mixer
+is used. Acceleration compensation forms a complementary signal: slow lateral
+and longitudinal motion comes from differentiating `VELOCITY WORLD X/Y/Z`, while
+fast tire, brake and surface detail stays sourced from `ACCELERATION BODY X/Z`.
+This prevents a sustained cue when propeller thrust is balanced by held brakes.
+Ground heave stabilization uses `1 G + L:FM_BodyAccelerationY` on the ground and
+fades continuously to standard `G FORCE` after liftoff, avoiding the one-frame
+load discontinuity observed in takeoff recordings. Raw, kinematic, compensated
+and heave-transition values are included in CSV diagnostics.
 
 The optional turbulence mixer leaves the original acceleration intact. It
 isolates a configurable fast band (default `0.7–5 Hz`) and blends only that
@@ -151,7 +167,7 @@ Horizontal for lateral motion, and a weaker Airframe contribution on all axes;
 the entire processor is off by default. Raw values, centred bands, normalized
 signals, individual contributions, and applied output are recorded in CSV.
 
-Four presets provide repeatable starting points. Selecting one enables the
+Five presets provide repeatable starting points. Selecting one enables the
 mixer and copies its values into the normal controls; every value can still be
 edited afterwards.
 
@@ -160,7 +176,8 @@ edited afterwards.
 | Light | 25% | 1.6× | 0.9–4 Hz | 0.08 G | Subtle air movement |
 | Medium | 50% | 2.5× | 0.7–5 Hz | 0.20 G | Balanced default |
 | Strong | 75% | 3.5× | 0.5–7 Hz | 0.30 G | Clearly noticeable turbulence |
-| Extreme | 100% | 5.0× | 0.3–10 Hz | 0.50 G | Short diagnostic tests only |
+| High | 100% | 5.0× | 0.3–10 Hz | 0.50 G | Former Extreme preset, validated in flight |
+| Extreme | 100% | 7.0× | 0.2–14 Hz | 0.75 G | Stronger diagnostic tests only |
 
 The `?` controls explain how mix, gain, cutoff frequencies, source choice, and
 the soft limit affect the output. Extreme settings can cause DRSM axis

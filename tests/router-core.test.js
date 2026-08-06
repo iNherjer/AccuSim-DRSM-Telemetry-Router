@@ -39,8 +39,13 @@ function applyMotionProfile(config, profile) {
 
 test('turbulence presets increase monotonically from light to extreme', () => {
   assert.deepEqual(TURBULENCE_PRESETS.map((preset) => preset.id), [
-    'light', 'medium', 'strong', 'extreme'
+    'light', 'medium', 'strong', 'high', 'extreme'
   ]);
+  const high = TURBULENCE_PRESETS.find((preset) => preset.id === 'high');
+  assert.deepEqual(
+    Object.fromEntries(['mix', 'gain', 'lowCutHz', 'highCutHz', 'maxExtraG'].map((key) => [key, high[key]])),
+    { mix: 1, gain: 5, lowCutHz: 0.3, highCutHz: 10, maxExtraG: 0.5 }
+  );
   const defaults = buildDefaultConfig().turbulence;
   const medium = TURBULENCE_PRESETS.find((preset) => preset.id === 'medium');
   for (const key of ['mix', 'gain', 'lowCutHz', 'highCutHz', 'maxExtraG']) {
@@ -49,7 +54,7 @@ test('turbulence presets increase monotonically from light to extreme', () => {
   for (let index = 1; index < TURBULENCE_PRESETS.length; index += 1) {
     const previous = TURBULENCE_PRESETS[index - 1];
     const current = TURBULENCE_PRESETS[index];
-    assert(current.mix > previous.mix);
+    assert(current.mix >= previous.mix);
     assert(current.gain > previous.gain);
     assert(current.maxExtraG > previous.maxExtraG);
     assert(current.lowCutHz < previous.lowCutHz);
@@ -489,7 +494,7 @@ test('legacy full default is migrated to the reduced basic output set', () => {
   legacy.channels['vel.0'].enabled = true;
   legacy.channels.gear_left.enabled = true;
   const normalized = normalizeConfig(legacy);
-  assert.equal(normalized.schemaVersion, 10);
+  assert.equal(normalized.schemaVersion, 11);
   assert.equal(normalized.expertMode, true);
   assert.equal(normalized.channels['acc.0'].enabled, true);
   assert.equal(normalized.channels['vel.0'].enabled, false);
@@ -517,7 +522,7 @@ test('schema v4 migration removes the known gravity workaround and upgrades A2A 
   config.channels['acc.2'].offset = 2;
   config.channels['ang_vel.0'].operation = 'integrate';
   const normalized = normalizeConfig(config);
-  assert.equal(normalized.schemaVersion, 10);
+  assert.equal(normalized.schemaVersion, 11);
   assert.equal(normalized.channels['acc.2'].offset, 0);
   assert.equal(normalized.channels['acc.2'].sourceId, 'std.gforce');
   assert.equal(normalized.channels['ang_vel.0'].operation, 'fuse_v2');
@@ -530,7 +535,7 @@ test('schema v7 upgrades only an untouched Legacy motion mapping to V2', () => {
   const legacy = applyMotionProfile(buildDefaultConfig(), MOTION_MIX_PROFILES.legacy);
   legacy.schemaVersion = 7;
   const upgraded = normalizeConfig(legacy);
-  assert.equal(upgraded.schemaVersion, 10);
+  assert.equal(upgraded.schemaVersion, 11);
   assert.equal(upgraded.channels['acc.2'].sourceId, 'std.gforce');
   assert.equal(upgraded.channels['ang_vel.0'].operation, 'fuse_v2');
   assert.equal(upgraded.channels['ang_vel.1'].sourceId, 'std.angular.body.z');
@@ -686,6 +691,15 @@ test('optional attitude mix adds only sustained pitch and roll components', () =
   close(result.diagnostics.attitudeMix.vectorG[2], 0);
 });
 
+test('attitude mix accepts tester gains up to 500 percent', () => {
+  const config = buildDefaultConfig();
+  config.attitudeMix.pitchMix = 5;
+  config.attitudeMix.rollMix = 7;
+  const normalized = normalizeConfig(config);
+  close(normalized.attitudeMix.pitchMix, 5);
+  close(normalized.attitudeMix.rollMix, 5);
+});
+
 test('ground forces fade continuously into A2A on ground and out again in flight', () => {
   const config = buildDefaultConfig();
   Object.values(config.channels).forEach((channel) => { channel.enabled = false; });
@@ -716,7 +730,7 @@ test('ground forces fade continuously into A2A on ground and out again in flight
   assert(grounded.diagnostics.groundForces.blend > 0.999);
   const expectedLateral = 2 * Math.tanh(0.2 / 2);
   const expectedLongitudinal = 2 * Math.tanh(-0.3 / 2);
-  close(grounded.packet.acc[0], 0.1 + expectedLateral * grounded.diagnostics.groundForces.blend, 1e-9);
+  close(grounded.packet.acc[0], 0.1 - expectedLateral * grounded.diagnostics.groundForces.blend, 1e-9);
   close(grounded.packet.acc[1], -0.2 + expectedLongitudinal * grounded.diagnostics.groundForces.blend, 1e-9);
 
   source['std.on_ground'] = 0;
@@ -766,8 +780,8 @@ test('ground force soft limit bounds spikes and respects channel scale and inver
   for (let index = 1; index <= 5; index += 1) result = core.update(source, index * 0.02);
   assert.equal(result.diagnostics.groundForces.limited[0], true);
   assert(result.diagnostics.groundForces.limitedG[0] <= 0.3);
-  assert(result.diagnostics.groundForces.limitedG[0] > 0.299);
-  assert(result.diagnostics.groundForces.appliedG[0] < -0.598);
+  assert(result.diagnostics.groundForces.limitedG[0] < -0.299);
+  assert(result.diagnostics.groundForces.appliedG[0] > 0.598);
   // Offset belongs to the routed base channel and is deliberately not applied
   // a second time to the ground supplement.
   close(result.packet.acc[0], 0.5 + result.diagnostics.groundForces.appliedG[0]);
@@ -798,6 +812,82 @@ test('ground forces do not double-add a standard acceleration mapping', () => {
   close(result.packet.acc[0], 1);
   assert.equal(result.diagnostics.groundForces.eligible[0], false);
   close(result.diagnostics.groundForces.appliedG[0], 0);
+});
+
+test('ground acceleration compensation rejects static thrust and keeps true motion with DCS lateral sign', () => {
+  const config = buildDefaultConfig();
+  Object.values(config.channels).forEach((channel) => { channel.enabled = false; });
+  config.channels['acc.0'] = { ...MOTION_MIX_PROFILES.v2.channels['acc.0'] };
+  config.channels['acc.1'] = { ...MOTION_MIX_PROFILES.v2.channels['acc.1'] };
+  config.groundForces.enabled = true;
+  config.groundForces.accelerationCompensationEnabled = true;
+  config.groundForces.heaveStabilizationEnabled = false;
+  config.groundForces.fadeInSeconds = 0.05;
+  config.groundForces.maxExtraG = 2;
+  const oneGFps2 = 9.80665 / 0.3048;
+  const source = {
+    'a2a.acc.x': 0,
+    'a2a.acc.z': 0,
+    'std.acc.body.x': 0,
+    'std.acc.body.z': 0.2 * oneGFps2,
+    'std.velocity.world.x': 0,
+    'std.velocity.world.y': 0,
+    'std.velocity.world.z': 0,
+    'std.heading': 0,
+    'std.on_ground': 1
+  };
+  const staticCore = new RouterCore(config);
+  let staticResult;
+  for (let index = 0; index <= 200; index += 1) {
+    staticResult = staticCore.update(source, index * 0.02);
+  }
+  assert.equal(staticResult.diagnostics.groundForces.compensationValid, true);
+  assert(Math.abs(staticResult.packet.acc[1]) < 0.002);
+
+  const movingCore = new RouterCore(config);
+  let movingResult;
+  for (let index = 0; index <= 150; index += 1) {
+    const time = index * 0.02;
+    source['std.acc.body.x'] = 0.2 * oneGFps2;
+    source['std.velocity.world.x'] = 0.2 * oneGFps2 * time;
+    source['std.velocity.world.z'] = 0.2 * oneGFps2 * time;
+    movingResult = movingCore.update(source, time);
+  }
+  assert(movingResult.packet.acc[1] > 0.19);
+  assert(movingResult.packet.acc[0] < -0.19);
+  assert(movingResult.diagnostics.groundForces.kinematicG[0] > 0.19);
+});
+
+test('ground heave stabilization removes the one-frame G FORCE transition at lift-off', () => {
+  const config = buildDefaultConfig();
+  Object.values(config.channels).forEach((channel) => { channel.enabled = false; });
+  config.channels['acc.2'] = { ...MOTION_MIX_PROFILES.v2.channels['acc.2'] };
+  config.groundForces.enabled = true;
+  config.groundForces.accelerationCompensationEnabled = false;
+  config.groundForces.heaveStabilizationEnabled = true;
+  config.groundForces.fadeOutSeconds = 1;
+  const source = {
+    'std.gforce': 0.025,
+    'a2a.acc.y': 0.1 * 9.80665,
+    'std.acc.body.x': 0,
+    'std.acc.body.z': 0,
+    'std.on_ground': 1
+  };
+  const core = new RouterCore(config);
+  const grounded = core.update(source, 0);
+  close(grounded.packet.acc[2], 1.1);
+
+  source['std.on_ground'] = 0;
+  source['std.gforce'] = 1.05;
+  const liftOff = core.update(source, 0.02);
+  assert(Math.abs(liftOff.packet.acc[2] - grounded.packet.acc[2]) < 0.01);
+  assert(liftOff.diagnostics.groundForces.heave.blend > 0.9);
+
+  let airborne;
+  for (let index = 2; index <= 120; index += 1) {
+    airborne = core.update(source, index * 0.02);
+  }
+  close(airborne.packet.acc[2], 1.05, 0.0001);
 });
 
 function shakeMixerConfig() {
@@ -1045,6 +1135,17 @@ test('enabled channel and diagnostic sources are required and deduplicated', () 
   assert.equal(defaults.includes('a2a.engine.rpm'), true);
   assert.equal(defaults.includes('std.gear.left'), false);
   assert.equal(defaults.includes('std.wind.x'), false);
+
+  config.groundForces.enabled = true;
+  const groundSources = requiredSources(config).map((entry) => entry.id);
+  for (const sourceId of [
+    'std.velocity.world.x',
+    'std.velocity.world.y',
+    'std.velocity.world.z',
+    'std.heading',
+    'a2a.acc.y',
+    'std.gforce'
+  ]) assert.equal(groundSources.includes(sourceId), true, sourceId);
 
   config.channels['acc.0'].sourceId = 'std.acc.body.x';
   config.channels['acc.1'].enabled = false;

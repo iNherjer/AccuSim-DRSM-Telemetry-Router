@@ -44,11 +44,22 @@ test('CSV recorder writes raw sources, routed outputs and turbulence diagnostics
             blend: 0.75,
             rawG: [0.2, -0.3],
             filteredG: [0.18, -0.28],
+            kinematicG: [0.16, -0.25],
+            compensatedG: [0.17, -0.26],
+            compensationValid: true,
             unlimitedG: [0.18, -0.28],
             limitedG: [0.17, -0.26],
             appliedG: [0.1275, -0.195],
             eligible: [true, true],
-            limited: [false, false]
+            limited: [false, false],
+            heave: {
+              blend: 0.8,
+              groundG: 1.02,
+              flightG: 0.95,
+              rawDeltaG: 0.056,
+              appliedG: 0.056,
+              eligible: true
+            }
           },
           shakeMixer: {
             sources: {
@@ -119,6 +130,8 @@ test('CSV recorder writes raw sources, routed outputs and turbulence diagnostics
     assert.match(text[0], /attitude_mix_lateral_g/);
     assert.match(text[0], /ground_forces_blend/);
     assert.match(text[0], /ground_forces_applied_longitudinal_g/);
+    assert.match(text[0], /ground_forces_compensated_longitudinal_g/);
+    assert.match(text[0], /ground_heave_applied_g/);
     assert.match(text[0], /ground_forces_lateral_eligible/);
     assert.match(text[0], /shake_mixer_airframe_raw/);
     assert.match(text[0], /shake_mixer_vertical_band/);

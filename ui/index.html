@@ -143,11 +143,11 @@
             <div class="attitude-mix-settings">
               <label>
                 <span class="setting-label"><span data-i18n="attitudeMix.pitch">Pitch → längs (%)</span> <span class="help-tip" tabindex="0" role="note" data-i18n-tooltip="tooltip.attitudeMixPitch">?</span></span>
-                <input id="attitudeMixPitchInput" type="number" min="0" max="200" step="5" data-i18n-title="tooltip.attitudeMixPitch">
+                <input id="attitudeMixPitchInput" type="number" min="0" max="500" step="5" data-i18n-title="tooltip.attitudeMixPitch">
               </label>
               <label>
                 <span class="setting-label"><span data-i18n="attitudeMix.roll">Roll → quer (%)</span> <span class="help-tip" tabindex="0" role="note" data-i18n-tooltip="tooltip.attitudeMixRoll">?</span></span>
-                <input id="attitudeMixRollInput" type="number" min="0" max="200" step="5" data-i18n-title="tooltip.attitudeMixRoll">
+                <input id="attitudeMixRollInput" type="number" min="0" max="500" step="5" data-i18n-title="tooltip.attitudeMixRoll">
               </label>
             </div>
             <div class="processor-live-row">
@@ -216,6 +216,12 @@
             <label class="switch-label" data-i18n-title="tooltip.groundForcesEnabled"><input id="groundForcesEnabledInput" type="checkbox"><span data-i18n="groundForces.active">Aktiv</span></label>
           </div>
           <div class="ground-force-settings">
+            <label class="switch-label" data-i18n-title="tooltip.groundForcesAccelerationCompensation">
+              <input id="groundForcesAccelerationCompensationInput" type="checkbox"><span data-i18n="groundForces.accelerationCompensation">Beschleunigungskompensation</span>
+            </label>
+            <label class="switch-label" data-i18n-title="tooltip.groundForcesHeaveStabilization">
+              <input id="groundForcesHeaveStabilizationInput" type="checkbox"><span data-i18n="groundForces.heaveStabilization">Ground-Heave-Stabilisierung</span>
+            </label>
             <label>
               <span class="setting-label"><span data-i18n="groundForces.lateralMix">Querkraft-Mix (%)</span> <span class="help-tip" tabindex="0" role="note" data-i18n-tooltip="tooltip.groundForcesLateralMix">?</span></span>
               <input id="groundForcesLateralMixInput" type="number" min="0" max="200" step="5" data-i18n-title="tooltip.groundForcesLateralMix">
@@ -247,6 +253,8 @@
             <span><small data-i18n="groundForces.liveRaw">Standard roh [quer, längs]</small><output id="groundForcesRawLive">[0, 0] g</output></span>
             <span><small data-i18n="groundForces.liveFiltered">Gefiltert/begrenzt</small><output id="groundForcesFilteredLive">[0, 0] g</output></span>
             <span><small data-i18n="groundForces.liveApplied">Tatsächlich beigemischt</small><output id="groundForcesAppliedLive">[0, 0] g</output></span>
+            <span><small data-i18n="groundForces.liveHeaveBlend">Ground-Heave-Blend</small><output id="groundHeaveBlendLive">0 %</output></span>
+            <span><small data-i18n="groundForces.liveHeaveApplied">Heave-Korrektur</small><output id="groundHeaveAppliedLive">0 g</output></span>
           </div>
           <p id="groundForcesStatus" class="hint" data-i18n="groundForces.off">Aus: AccuSim liefert Quer- und Längsbeschleunigung unverändert.</p>
         </article>
@@ -323,7 +331,8 @@
             <button type="button" data-turbulence-preset="light" title="Leicht: dezente Luftunruhe, begrenzt auf maximal 0,08 g zusätzliche Heave-Bewegung.">Leicht</button>
             <button type="button" data-turbulence-preset="medium" title="Mittel: ausgewogener Ausgangspunkt und bisherige Standardeinstellung.">Mittel</button>
             <button type="button" data-turbulence-preset="strong" title="Stark: deutlichere und etwas länger anhaltende Turbulenzstöße.">Stark</button>
-            <button class="extreme" type="button" data-turbulence-preset="extreme" title="Extrem: sehr breite, starke Verstärkung nur für kurze Tests; kann DRSM- oder Plattformlimits erreichen.">Extrem</button>
+            <button type="button" data-turbulence-preset="high" title="Hoch: das bisherige, im Flugtest bewährte Extrem-Preset.">Hoch</button>
+            <button class="extreme" type="button" data-turbulence-preset="extreme" title="Extrem: noch stärkere Teststufe; Plattform- und DRSM-Limits sorgfältig überwachen.">Extrem</button>
             <span id="turbulencePresetState" class="preset-state" data-i18n="turbulence.custom">Benutzerdefiniert</span>
           </div>
           <div class="turbulence-settings">
