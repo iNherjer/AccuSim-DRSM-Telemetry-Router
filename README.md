@@ -94,6 +94,8 @@ Telemetry Router ── mapping / unit conversion ──► DCS v2 JSON over UDP
   acceleration with a 0–200% matrix, inversion, centering, smoothing, and limits
 - Optional turbulence mixer with five presets, band-pass, blend, gain, and soft G limit
 - Independently adjustable vertical-wind branch with source, mix, gain, and sign controls
+- Independently adjustable lateral-wind branch sends filtered gust acceleration
+  as DCS `acc.0` side force and optionally as a bounded roll or yaw rate
 - Raw CSV diagnostics for A2A `AirframeShake`, vertical/horizontal panel shake,
   and the experimental `CameraHeight` value
 - Persistent German/English interface, including tray, updater, status and validation messages
@@ -158,7 +160,17 @@ vertical wind velocity into acceleration, filters it separately, and adds it to
 the main turbulence component. `AIRCRAFT WIND Y` is the recommended starting
 source; `AMBIENT WIND Y` and `RELATIVE WIND VELOCITY BODY Y` are available for
 comparison. Both additions share one adjustable soft limit and are off by
-default for safe initial testing. After a telemetry gap longer than `250 ms`,
+default for safe initial testing.
+
+An independent lateral-wind branch differentiates `AIRCRAFT WIND X` into
+lateral gust acceleration and sends the filtered result as a true DCS `acc.0`
+side-force cue. The same impulse can additionally drive either `ang_vel.1`
+(roll, useful on a 3DOF platform) or `ang_vel.2` (yaw). Force and rotation have
+separate mix controls and soft limits, while source, band-pass, gain, and sign
+remain shared. `RELATIVE WIND VELOCITY BODY X` is available as a comparison
+source. The entire branch is off by default.
+
+After a telemetry gap longer than `250 ms`,
 the filter state is reset and only the added turbulence component is suppressed
 for `750 ms` while normal flight-model telemetry continues to be sent.
 
@@ -211,8 +223,8 @@ For a diagnostic log, click **CSV aufnehmen** after the bridge is running and
 **CSV stoppen** when the manoeuvre is complete. The focused diagnostic set is
 sampled even when those values are not routed to DCS. It includes A2A and stock
 vertical acceleration, world acceleration, G force, aircraft/ambient/relative
-vertical wind, body/world vertical velocity, cloud density, pitch rate, pitch,
-elevator input, `L:AirframeShake`, `L:PanelVerticalShake`,
+vertical wind, aircraft/relative lateral wind, body/world velocity, cloud
+density, pitch rate, pitch, elevator input, `L:AirframeShake`, `L:PanelVerticalShake`,
 `L:PanelHorizontalShake`, and the experimental `L:CameraHeight`.
 
 Do not run another DCS-format telemetry sender to the same DRSM endpoint at the
@@ -258,9 +270,9 @@ Chromium renderer receives no live telemetry snapshots. SimConnect processing
 and UDP output continue normally, and the UI receives one current snapshot when
 it is shown again.
 
-The default V2 profile maps 14 output channels and also samples 29 focused
+The default V2 profile maps 14 output channels and also samples 32 focused
 diagnostic candidates, with all overlaps and the additional pitch-rate anchor
-deduplicated. This results in 35 values per visual frame in the default
+deduplicated. This results in 38 values per visual frame in the default
 configuration. Shared
 inputs such as `L:Eng1_RPM` are subscribed only once. Changing scale or offset
 does not reconnect SimConnect; changing an enabled channel's source or sampling

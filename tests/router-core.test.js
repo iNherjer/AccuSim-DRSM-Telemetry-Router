@@ -9,6 +9,7 @@ const {
   OUTPUTS,
   SAFE_SOURCE_IDS,
   TURBULENCE_PRESETS,
+  TURBULENCE_LATERAL_WIND_SOURCE_IDS,
   TURBULENCE_SOURCE_IDS,
   TURBULENCE_WIND_SOURCE_IDS,
   UNIT_DEFINITIONS,
@@ -494,7 +495,7 @@ test('legacy full default is migrated to the reduced basic output set', () => {
   legacy.channels['vel.0'].enabled = true;
   legacy.channels.gear_left.enabled = true;
   const normalized = normalizeConfig(legacy);
-  assert.equal(normalized.schemaVersion, 11);
+  assert.equal(normalized.schemaVersion, 12);
   assert.equal(normalized.expertMode, true);
   assert.equal(normalized.channels['acc.0'].enabled, true);
   assert.equal(normalized.channels['vel.0'].enabled, false);
@@ -522,7 +523,7 @@ test('schema v4 migration removes the known gravity workaround and upgrades A2A 
   config.channels['acc.2'].offset = 2;
   config.channels['ang_vel.0'].operation = 'integrate';
   const normalized = normalizeConfig(config);
-  assert.equal(normalized.schemaVersion, 11);
+  assert.equal(normalized.schemaVersion, 12);
   assert.equal(normalized.channels['acc.2'].offset, 0);
   assert.equal(normalized.channels['acc.2'].sourceId, 'std.gforce');
   assert.equal(normalized.channels['ang_vel.0'].operation, 'fuse_v2');
@@ -535,7 +536,7 @@ test('schema v7 upgrades only an untouched Legacy motion mapping to V2', () => {
   const legacy = applyMotionProfile(buildDefaultConfig(), MOTION_MIX_PROFILES.legacy);
   legacy.schemaVersion = 7;
   const upgraded = normalizeConfig(legacy);
-  assert.equal(upgraded.schemaVersion, 11);
+  assert.equal(upgraded.schemaVersion, 12);
   assert.equal(upgraded.channels['acc.2'].sourceId, 'std.gforce');
   assert.equal(upgraded.channels['ang_vel.0'].operation, 'fuse_v2');
   assert.equal(upgraded.channels['ang_vel.1'].sourceId, 'std.angular.body.z');
@@ -1084,12 +1085,20 @@ test('turbulence is suppressed while filters settle after a telemetry gap', () =
   config.turbulence.mix = 1;
   config.turbulence.gain = 3;
   config.turbulence.maxExtraG = 0.2;
+  config.turbulence.lateralWindEnabled = true;
+  config.turbulence.lateralWindForceMix = 1;
+  config.turbulence.lateralWindGain = 1;
+  config.turbulence.lateralWindMaxExtraG = 0.2;
+  config.turbulence.lateralWindRotationTarget = 'roll';
+  config.turbulence.lateralWindRotationMix = 1;
+  config.turbulence.lateralWindMaxRateDeg = 10;
   const core = new RouterCore(config);
   const sample = {
     'a2a.acc.x': 0,
     'a2a.acc.y': 0,
     'a2a.acc.z': 0,
     'std.gforce': 0,
+    'std.wind.aircraft.x': 0,
     'std.angular.body.x': 0,
     'std.angular.body.y': 0,
     'std.angular.body.z': 0,
@@ -1113,19 +1122,32 @@ test('turbulence is suppressed while filters settle after a telemetry gap', () =
 
   sample['a2a.acc.y'] = 0.8 * 9.80665;
   sample['std.gforce'] = 0.8;
+  sample['std.wind.aircraft.x'] = 1;
   const transient = core.update(sample, 0.52);
   assert(transient.diagnostics.turbulence.computedExtraG > 0);
   close(transient.diagnostics.turbulence.extraG, 0);
   assert.equal(transient.diagnostics.turbulence.suppressed, true);
+  assert(transient.diagnostics.turbulence.lateralWind.computedForceG > 0);
+  assert(transient.diagnostics.turbulence.lateralWind.computedRotationRadps > 0);
+  close(transient.diagnostics.turbulence.lateralWind.forceExtraG, 0);
+  close(transient.diagnostics.turbulence.lateralWind.rotationExtraRadps, 0);
+  assert.equal(transient.diagnostics.turbulence.lateralWind.suppressed, true);
   close(transient.packet.acc[2], 0.8);
+  close(transient.packet.acc[0], 0);
+  close(transient.packet.ang_vel[1], 0);
 
   for (let time = 0.54; time < 1.26; time += 0.02) core.update(sample, time);
   sample['a2a.acc.y'] = 0.9 * 9.80665;
   sample['std.gforce'] = 0.9;
+  sample['std.wind.aircraft.x'] = 2;
   const recovered = core.update(sample, 1.26);
   assert.equal(recovered.diagnostics.timing.postGapTurbulenceSuppressed, false);
   assert(recovered.diagnostics.turbulence.extraG > 0);
+  assert(recovered.diagnostics.turbulence.lateralWind.forceExtraG > 0);
+  assert(recovered.diagnostics.turbulence.lateralWind.rotationExtraRadps > 0);
   assert(recovered.packet.acc[2] > 0.9);
+  assert(recovered.packet.acc[0] > 0);
+  assert(recovered.packet.ang_vel[1] > 0);
 });
 
 test('enabled channel and diagnostic sources are required and deduplicated', () => {
@@ -1192,6 +1214,10 @@ test('turbulence source list stays limited to meaningful vertical detectors', ()
     'std.wind.y',
     'std.wind.relative.body.y'
   ]);
+  assert.deepEqual(TURBULENCE_LATERAL_WIND_SOURCE_IDS, [
+    'std.wind.aircraft.x',
+    'std.wind.relative.body.x'
+  ]);
 });
 
 test('vertical wind branch is differentiated, mixed and bounded independently', () => {
@@ -1229,6 +1255,152 @@ test('vertical wind branch is differentiated, mixed and bounded independently', 
   assert(result.diagnostics.turbulence.extraG > 0);
   assert(result.diagnostics.turbulence.extraG < 0.2);
   assert(result.packet.acc[2] > 0);
+});
+
+test('lateral wind branch emits bounded lateral force and selectable roll or yaw rate', () => {
+  const baseConfig = buildDefaultConfig();
+  baseConfig.gravity.enabled = false;
+  baseConfig.turbulence.enabled = true;
+  baseConfig.turbulence.mix = 0;
+  baseConfig.turbulence.lateralWindEnabled = true;
+  baseConfig.turbulence.lateralWindForceMix = 1;
+  baseConfig.turbulence.lateralWindGain = 1;
+  baseConfig.turbulence.lateralWindMaxExtraG = 0.2;
+  baseConfig.turbulence.lateralWindRotationTarget = 'roll';
+  baseConfig.turbulence.lateralWindRotationMix = 1;
+  baseConfig.turbulence.lateralWindMaxRateDeg = 10;
+  const sample = {
+    'a2a.acc.x': 0,
+    'a2a.acc.y': 0,
+    'a2a.acc.z': 0,
+    'std.gforce': 0,
+    'std.wind.aircraft.x': 0,
+    'std.angular.body.x': 0,
+    'std.angular.body.y': 0,
+    'std.angular.body.z': 0,
+    'std.pitch': 0,
+    'std.bank': 0,
+    'std.heading': 0,
+    'std.alt.agl': 0,
+    'std.airspeed.ias': 0,
+    'a2a.stall': 0,
+    'a2a.engine.rpm': 0
+  };
+
+  const rollCore = new RouterCore(baseConfig);
+  rollCore.update(sample, 0);
+  sample['std.wind.aircraft.x'] = 1;
+  const roll = rollCore.update(sample, 0.02);
+  assert(roll.diagnostics.turbulence.lateralWind.sourceG > 0);
+  assert(roll.diagnostics.turbulence.lateralWind.bandG > 0);
+  assert(roll.diagnostics.turbulence.lateralWind.forceExtraG > 0);
+  assert(roll.diagnostics.turbulence.lateralWind.forceExtraG < 0.2);
+  assert(roll.diagnostics.turbulence.lateralWind.rotationExtraRadps > 0);
+  assert(roll.diagnostics.turbulence.lateralWind.rotationExtraRadps < 10 * Math.PI / 180);
+  assert(roll.packet.acc[0] > 0);
+  assert(roll.packet.ang_vel[1] > 0);
+  close(roll.packet.ang_vel[2], 0);
+
+  const yawConfig = buildDefaultConfig();
+  yawConfig.gravity.enabled = false;
+  yawConfig.turbulence.enabled = true;
+  yawConfig.turbulence.mix = 0;
+  yawConfig.turbulence.lateralWindEnabled = true;
+  yawConfig.turbulence.lateralWindForceMix = 0;
+  yawConfig.turbulence.lateralWindGain = 1;
+  yawConfig.turbulence.lateralWindRotationTarget = 'yaw';
+  yawConfig.turbulence.lateralWindRotationMix = 1;
+  yawConfig.turbulence.lateralWindMaxRateDeg = 10;
+  yawConfig.turbulence.lateralWindInvert = true;
+  sample['std.wind.aircraft.x'] = 0;
+  const yawCore = new RouterCore(yawConfig);
+  yawCore.update(sample, 0);
+  sample['std.wind.aircraft.x'] = 1;
+  const yaw = yawCore.update(sample, 0.02);
+  close(yaw.packet.acc[0], 0);
+  close(yaw.packet.ang_vel[1], 0);
+  assert(yaw.packet.ang_vel[2] < 0);
+  assert.equal(yaw.diagnostics.turbulence.lateralWind.target, 'yaw');
+});
+
+test('lateral force ceiling does not change the independently mixed rotation cue', () => {
+  const buildConfig = (forceLimit) => {
+    const config = buildDefaultConfig();
+    config.gravity.enabled = false;
+    config.turbulence.enabled = true;
+    config.turbulence.mix = 0;
+    config.turbulence.lateralWindEnabled = true;
+    config.turbulence.lateralWindForceMix = 1;
+    config.turbulence.lateralWindGain = 1;
+    config.turbulence.lateralWindMaxExtraG = forceLimit;
+    config.turbulence.lateralWindRotationTarget = 'roll';
+    config.turbulence.lateralWindRotationMix = 0.5;
+    config.turbulence.lateralWindMaxRateDeg = 10;
+    return config;
+  };
+  const sample = {
+    'a2a.acc.x': 0,
+    'a2a.acc.y': 0,
+    'a2a.acc.z': 0,
+    'std.gforce': 0,
+    'std.wind.aircraft.x': 0,
+    'std.angular.body.x': 0,
+    'std.angular.body.y': 0,
+    'std.angular.body.z': 0,
+    'std.pitch': 0,
+    'std.bank': 0,
+    'std.heading': 0,
+    'std.alt.agl': 0,
+    'std.airspeed.ias': 0,
+    'a2a.stall': 0,
+    'a2a.engine.rpm': 0
+  };
+  const lowLimitCore = new RouterCore(buildConfig(0.05));
+  const highLimitCore = new RouterCore(buildConfig(0.8));
+  lowLimitCore.update(sample, 0);
+  highLimitCore.update(sample, 0);
+  sample['std.wind.aircraft.x'] = 1;
+  const lowLimit = lowLimitCore.update(sample, 0.02);
+  const highLimit = highLimitCore.update(sample, 0.02);
+
+  close(lowLimit.packet.ang_vel[1], highLimit.packet.ang_vel[1]);
+  assert(lowLimit.packet.acc[0] < highLimit.packet.acc[0]);
+});
+
+test('enabling lateral wind at a steady value starts without a force or rotation step', () => {
+  const config = buildDefaultConfig();
+  config.gravity.enabled = false;
+  config.turbulence.enabled = false;
+  const sample = {
+    'a2a.acc.x': 0,
+    'a2a.acc.y': 0,
+    'a2a.acc.z': 0,
+    'std.gforce': 0,
+    'std.wind.aircraft.x': 12,
+    'std.angular.body.x': 0,
+    'std.angular.body.y': 0,
+    'std.angular.body.z': 0,
+    'std.pitch': 0,
+    'std.bank': 0,
+    'std.heading': 0,
+    'std.alt.agl': 0,
+    'std.airspeed.ias': 0,
+    'a2a.stall': 0,
+    'a2a.engine.rpm': 0
+  };
+  const core = new RouterCore(config);
+  core.update(sample, 0);
+  config.turbulence.enabled = true;
+  config.turbulence.lateralWindEnabled = true;
+  config.turbulence.lateralWindForceMix = 1;
+  config.turbulence.lateralWindRotationMix = 1;
+  core.setConfig(config);
+  const result = core.update(sample, 0.02);
+  close(result.diagnostics.turbulence.lateralWind.bandG, 0);
+  close(result.diagnostics.turbulence.lateralWind.forceExtraG, 0);
+  close(result.diagnostics.turbulence.lateralWind.rotationExtraRadps, 0);
+  close(result.packet.acc[0], 0);
+  close(result.packet.ang_vel[1], 0);
 });
 
 test('safe runtime blocks stored Raw mappings until Raw mode is enabled', () => {

@@ -107,6 +107,23 @@ test('CSV recorder writes raw sources, routed outputs and turbulence diagnostics
             bandG: 0.08,
             mainExtraG: 0.02,
             wind: { sourceG: 0.04, bandG: 0.03, extraG: 0.01 },
+            lateralWind: {
+              sourceG: 0.06,
+              bandG: 0.05,
+              baseG: 0.04,
+              forceUnlimitedG: 0.03,
+              computedForceG: 0.029,
+              forceExtraG: 0,
+              forceEligible: true,
+              forceLimited: false,
+              target: 'roll',
+              rotationUnlimitedRadps: 0.02,
+              computedRotationRadps: 0.019,
+              rotationExtraRadps: 0,
+              rotationEligible: true,
+              rotationLimited: false,
+              suppressed: true
+            },
             unlimitedExtraG: 0.03,
             computedExtraG: 0.03,
             extraG: 0.03,
@@ -125,6 +142,8 @@ test('CSV recorder writes raw sources, routed outputs and turbulence diagnostics
     assert.match(text[0], /out_acc_2_g/);
     assert.match(text[0], /turbulence_extra_g/);
     assert.match(text[0], /turbulence_wind_extra_g/);
+    assert.match(text[0], /turbulence_lateral_wind_force_extra_g/);
+    assert.match(text[0], /turbulence_lateral_wind_rotation_extra_radps/);
     assert.match(text[0], /sample_dt_s/);
     assert.match(text[0], /gravity_reference_pitch_rad/);
     assert.match(text[0], /attitude_mix_lateral_g/);

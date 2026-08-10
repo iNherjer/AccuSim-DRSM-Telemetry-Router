@@ -13,7 +13,7 @@ test('config store creates and atomically persists bridge configuration', () => 
     const store = new BridgeConfigStore({ dataDirectory: root });
     const initial = store.read();
     assert.equal(initial.port, 4135);
-    assert.equal(initial.schemaVersion, 11);
+    assert.equal(initial.schemaVersion, 12);
     assert.equal(initial.language, 'de');
     assert.equal(initial.expertMode, false);
     assert.equal(initial.unsafeMode, false);
@@ -48,6 +48,15 @@ test('config store creates and atomically persists bridge configuration', () => 
     assert.equal(initial.rotationFusion.v2CorrectionTauSeconds, 0.35);
     assert.equal(initial.rotationFusion.v2BiasTauSeconds, 2.5);
     assert.equal(initial.turbulence.enabled, false);
+    assert.equal(initial.turbulence.lateralWindEnabled, false);
+    assert.equal(initial.turbulence.lateralWindSourceId, 'std.wind.aircraft.x');
+    assert.equal(initial.turbulence.lateralWindForceMix, 0.25);
+    assert.equal(initial.turbulence.lateralWindGain, 1);
+    assert.equal(initial.turbulence.lateralWindMaxExtraG, 0.2);
+    assert.equal(initial.turbulence.lateralWindRotationTarget, 'roll');
+    assert.equal(initial.turbulence.lateralWindRotationMix, 0.25);
+    assert.equal(initial.turbulence.lateralWindMaxRateDeg, 8);
+    assert.equal(initial.turbulence.lateralWindInvert, false);
     assert.equal(fs.existsSync(path.join(root, 'bridge-config.json')), true);
     initial.host = '192.168.1.20';
     initial.channels.rpm_left.enabled = false;

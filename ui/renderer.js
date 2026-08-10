@@ -41,8 +41,15 @@ const elements = Object.fromEntries([
   'turbulenceLowCutInput', 'turbulenceHighCutInput', 'turbulenceMaxExtraInput',
   'turbulenceWindEnabledInput', 'turbulenceWindSourceSelect',
   'turbulenceWindMixInput', 'turbulenceWindGainInput', 'turbulenceWindInvertInput',
+  'turbulenceLateralWindEnabledInput', 'turbulenceLateralWindSourceSelect',
+  'turbulenceLateralWindForceMixInput', 'turbulenceLateralWindGainInput',
+  'turbulenceLateralWindMaxExtraInput', 'turbulenceLateralWindRotationTargetSelect',
+  'turbulenceLateralWindRotationMixInput', 'turbulenceLateralWindMaxRateInput',
+  'turbulenceLateralWindInvertInput',
   'turbulenceSourceLive', 'turbulenceBandLive', 'turbulenceExtraLive',
   'turbulenceWindSourceLive', 'turbulenceWindBandLive', 'turbulenceWindExtraLive',
+  'turbulenceLateralWindSourceLive', 'turbulenceLateralWindBandLive',
+  'turbulenceLateralWindForceLive', 'turbulenceLateralWindRotationLive',
   'turbulenceFinalLive', 'turbulenceStatus', 'turbulencePresetState',
   'languageSelect', 'v2MixToggleButton', 'motionMixHint'
 ].map((id) => [id, document.getElementById(id)]));
@@ -434,6 +441,16 @@ function turbulenceWindSourceOptions(selectedId) {
   return groupedSourceOptions(sources, selectedId);
 }
 
+function turbulenceLateralWindSourceOptions(selectedId) {
+  const allowedBuiltinIds = new Set(state.catalog.turbulenceLateralWindSourceIds || []);
+  const sources = state.catalog.sources.filter((source) => {
+    const family = state.catalog.units[source.inputUnit]?.family;
+    const customSource = source.group === 'Eigene LVars' || source.id.startsWith('custom.');
+    return family === 'velocity' && (customSource || allowedBuiltinIds.has(source.id));
+  });
+  return groupedSourceOptions(sources, selectedId);
+}
+
 function activeTurbulencePreset() {
   const config = draftConfig.turbulence || {};
   return (state.catalog.turbulencePresets || []).find((preset) => (
@@ -558,6 +575,19 @@ function renderDynamicsConfig() {
   elements.turbulenceWindMixInput.value = Math.round(Number(draftConfig.turbulence?.windMix ?? 0.25) * 100);
   elements.turbulenceWindGainInput.value = draftConfig.turbulence?.windGain ?? 1;
   elements.turbulenceWindInvertInput.checked = draftConfig.turbulence?.windInvert === true;
+  elements.turbulenceLateralWindEnabledInput.checked = draftConfig.turbulence?.lateralWindEnabled === true;
+  elements.turbulenceLateralWindSourceSelect.replaceChildren(
+    turbulenceLateralWindSourceOptions(draftConfig.turbulence?.lateralWindSourceId || 'std.wind.aircraft.x')
+  );
+  elements.turbulenceLateralWindSourceSelect.value = draftConfig.turbulence?.lateralWindSourceId || 'std.wind.aircraft.x';
+  elements.turbulenceLateralWindSourceSelect.title = `${t('tooltip.turbulenceLateralWindSource')}\n${elements.turbulenceLateralWindSourceSelect.selectedOptions[0]?.textContent || ''}`;
+  elements.turbulenceLateralWindForceMixInput.value = Math.round(Number(draftConfig.turbulence?.lateralWindForceMix ?? 0.25) * 100);
+  elements.turbulenceLateralWindGainInput.value = draftConfig.turbulence?.lateralWindGain ?? 1;
+  elements.turbulenceLateralWindMaxExtraInput.value = draftConfig.turbulence?.lateralWindMaxExtraG ?? 0.2;
+  elements.turbulenceLateralWindRotationTargetSelect.value = draftConfig.turbulence?.lateralWindRotationTarget || 'roll';
+  elements.turbulenceLateralWindRotationMixInput.value = Math.round(Number(draftConfig.turbulence?.lateralWindRotationMix ?? 0.25) * 100);
+  elements.turbulenceLateralWindMaxRateInput.value = draftConfig.turbulence?.lateralWindMaxRateDeg ?? 8;
+  elements.turbulenceLateralWindInvertInput.checked = draftConfig.turbulence?.lateralWindInvert === true;
   renderMotionMixState();
   renderTurbulencePresetState();
 }
@@ -801,20 +831,30 @@ function renderLive(runtime = {}) {
           })));
   const turbulence = diagnostics.turbulence || {};
   const turbulenceWind = turbulence.wind || {};
+  const turbulenceLateralWind = turbulence.lateralWind || {};
   elements.turbulenceSourceLive.textContent = `${numberText(turbulence.sourceG, 4)} g`;
   elements.turbulenceBandLive.textContent = `${numberText(turbulence.bandG, 4)} g`;
   elements.turbulenceExtraLive.textContent = `${numberText(turbulence.extraG, 4)} g`;
   elements.turbulenceWindSourceLive.textContent = `${numberText(turbulenceWind.sourceG, 4)} g`;
   elements.turbulenceWindBandLive.textContent = `${numberText(turbulenceWind.bandG, 4)} g`;
   elements.turbulenceWindExtraLive.textContent = `${numberText(turbulenceWind.extraG, 4)} g`;
+  elements.turbulenceLateralWindSourceLive.textContent = `${numberText(turbulenceLateralWind.sourceG, 4)} g`;
+  elements.turbulenceLateralWindBandLive.textContent = `${numberText(turbulenceLateralWind.bandG, 4)} g`;
+  elements.turbulenceLateralWindForceLive.textContent = `${numberText(turbulenceLateralWind.forceExtraG, 4)} g`;
+  const lateralRotationLabel = turbulenceLateralWind.target === 'yaw'
+    ? t('turbulence.lateralWindTargetYaw')
+    : t('turbulence.lateralWindTargetRoll');
+  elements.turbulenceLateralWindRotationLive.textContent = `${lateralRotationLabel}: ${numberText(Number(turbulenceLateralWind.rotationExtraRadps || 0) * 180 / Math.PI, 3)} °/s`;
   elements.turbulenceFinalLive.textContent = diagnostics.accelerationG
     ? `${numberText(diagnostics.accelerationG[2], 4)} g`
     : '—';
-  const turbulenceError = runtime.channelErrors?.turbulence || '';
+  const turbulenceError = runtime.channelErrors?.turbulence || runtime.channelErrors?.turbulenceLateralWind || '';
   elements.turbulenceStatus.classList.toggle('error', Boolean(turbulenceError));
   elements.turbulenceStatus.textContent = turbulenceError || (draftConfig.turbulence?.enabled
     ? t('turbulence.on', {
-        limit: turbulence.limited ? t('turbulence.limited') : '',
+        limit: (turbulence.limited || turbulenceLateralWind.forceLimited || turbulenceLateralWind.rotationLimited)
+          ? t('turbulence.limited')
+          : '',
         low: numberText(draftConfig.turbulence.lowCutHz, 2),
         high: numberText(draftConfig.turbulence.highCutHz, 2)
       })
@@ -1001,6 +1041,22 @@ elements.turbulenceWindSourceSelect.addEventListener('change', () => {
 bindNestedNumber(elements.turbulenceWindMixInput, 'turbulence', 'windMix', (value) => Number(value) / 100);
 bindNestedNumber(elements.turbulenceWindGainInput, 'turbulence', 'windGain');
 bindNestedCheckbox(elements.turbulenceWindInvertInput, 'turbulence', 'windInvert');
+bindNestedCheckbox(elements.turbulenceLateralWindEnabledInput, 'turbulence', 'lateralWindEnabled');
+elements.turbulenceLateralWindSourceSelect.addEventListener('change', () => {
+  draftConfig.turbulence.lateralWindSourceId = elements.turbulenceLateralWindSourceSelect.value;
+  elements.turbulenceLateralWindSourceSelect.title = `${t('tooltip.turbulenceLateralWindSource')}\n${elements.turbulenceLateralWindSourceSelect.selectedOptions[0]?.textContent || ''}`;
+  queueSave();
+});
+bindNestedNumber(elements.turbulenceLateralWindForceMixInput, 'turbulence', 'lateralWindForceMix', (value) => Number(value) / 100);
+bindNestedNumber(elements.turbulenceLateralWindGainInput, 'turbulence', 'lateralWindGain');
+bindNestedNumber(elements.turbulenceLateralWindMaxExtraInput, 'turbulence', 'lateralWindMaxExtraG');
+elements.turbulenceLateralWindRotationTargetSelect.addEventListener('change', () => {
+  draftConfig.turbulence.lateralWindRotationTarget = elements.turbulenceLateralWindRotationTargetSelect.value;
+  queueSave();
+});
+bindNestedNumber(elements.turbulenceLateralWindRotationMixInput, 'turbulence', 'lateralWindRotationMix', (value) => Number(value) / 100);
+bindNestedNumber(elements.turbulenceLateralWindMaxRateInput, 'turbulence', 'lateralWindMaxRateDeg');
+bindNestedCheckbox(elements.turbulenceLateralWindInvertInput, 'turbulence', 'lateralWindInvert');
 
 for (const button of document.querySelectorAll('[data-turbulence-preset]')) {
   button.addEventListener('click', () => {
