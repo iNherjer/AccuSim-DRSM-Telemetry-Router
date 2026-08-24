@@ -115,6 +115,8 @@ input:focus, select:focus { border-color: var(--blue); box-shadow: 0 0 0 3px rgb
 .compact-setting { width: 130px; }
 .attitude-mix-settings { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .attitude-mix-settings input { height: 34px; font-size: 11px; }
+.axis-invert-setting { align-self: end; min-height: 34px; padding: 0 9px; border: 1px solid rgba(143,166,186,.13); border-radius: 8px; background: rgba(5,14,23,.4); }
+.axis-invert-setting input[type="checkbox"] { width: 18px; height: 18px; flex: 0 0 auto; accent-color: var(--amber); }
 .rotation-settings { display: grid; gap: 8px; }
 .v2-fusion-settings { display: none; }
 body.v2-mix-mode .legacy-fusion-settings { display: none; }

@@ -13,7 +13,8 @@ const elements = Object.fromEntries([
   'updateProgressWrap', 'updateProgress', 'downloadUpdateButton',
   'skipUpdateButton', 'restartUpdateButton', 'gravityEnabledInput',
   'gravityStrengthInput', 'gravityVectorLive', 'attitudeMixEnabledInput',
-  'attitudeMixPitchInput', 'attitudeMixRollInput', 'attitudeMixVectorLive',
+  'attitudeMixPitchInput', 'attitudeMixPitchInvertInput', 'attitudeMixRollInput',
+  'attitudeMixRollInvertInput', 'attitudeMixVectorLive',
   'rotationCorrectionEnabledInput', 'rotationCorrectionTauInput',
   'rotationWashoutEnabledInput', 'rotationWashoutTauInput',
   'rotationV2DetailInput', 'rotationV2CorrectionTauInput', 'rotationV2BiasTauInput',
@@ -21,7 +22,8 @@ const elements = Object.fromEntries([
   'rotationFusionTitle', 'rotationFusionSubtitle',
   'groundForcesEnabledInput', 'groundForcesAccelerationCompensationInput',
   'groundForcesHeaveStabilizationInput', 'groundForcesLateralMixInput',
-  'groundForcesLongitudinalMixInput', 'groundForcesFilterInput',
+  'groundForcesLongitudinalMixInput', 'groundForcesLateralInvertInput',
+  'groundForcesLongitudinalInvertInput', 'groundForcesFilterInput',
   'groundForcesMaxExtraInput', 'groundForcesFadeInInput', 'groundForcesFadeOutInput',
   'groundForcesStateLive', 'groundForcesBlendLive', 'groundForcesRawLive',
   'groundForcesFilteredLive', 'groundForcesAppliedLive', 'groundHeaveBlendLive',
@@ -522,7 +524,9 @@ function renderDynamicsConfig() {
   elements.gravityStrengthInput.value = draftConfig.gravity?.strengthG ?? 1;
   elements.attitudeMixEnabledInput.checked = draftConfig.attitudeMix?.enabled === true;
   elements.attitudeMixPitchInput.value = Math.round(Number(draftConfig.attitudeMix?.pitchMix ?? 1) * 100);
+  elements.attitudeMixPitchInvertInput.checked = draftConfig.attitudeMix?.pitchInvert === true;
   elements.attitudeMixRollInput.value = Math.round(Number(draftConfig.attitudeMix?.rollMix ?? 1) * 100);
+  elements.attitudeMixRollInvertInput.checked = draftConfig.attitudeMix?.rollInvert === true;
   elements.rotationCorrectionEnabledInput.checked = draftConfig.rotationFusion?.correctionEnabled === true;
   elements.rotationCorrectionTauInput.value = draftConfig.rotationFusion?.correctionTauSeconds ?? 1.25;
   elements.rotationWashoutEnabledInput.checked = draftConfig.rotationFusion?.residualWashoutEnabled === true;
@@ -535,6 +539,8 @@ function renderDynamicsConfig() {
   elements.groundForcesHeaveStabilizationInput.checked = draftConfig.groundForces?.heaveStabilizationEnabled !== false;
   elements.groundForcesLateralMixInput.value = Math.round(Number(draftConfig.groundForces?.lateralMix ?? 1) * 100);
   elements.groundForcesLongitudinalMixInput.value = Math.round(Number(draftConfig.groundForces?.longitudinalMix ?? 1) * 100);
+  elements.groundForcesLateralInvertInput.checked = draftConfig.groundForces?.lateralInvert === true;
+  elements.groundForcesLongitudinalInvertInput.checked = draftConfig.groundForces?.longitudinalInvert === true;
   elements.groundForcesFilterInput.value = draftConfig.groundForces?.filterHz ?? 5;
   elements.groundForcesMaxExtraInput.value = draftConfig.groundForces?.maxExtraG ?? 0.6;
   elements.groundForcesFadeInInput.value = draftConfig.groundForces?.fadeInSeconds ?? 0.35;
@@ -974,7 +980,9 @@ function bindNestedNumber(element, section, key, transform = Number) {
 bindNestedNumber(elements.gravityStrengthInput, 'gravity', 'strengthG');
 bindNestedCheckbox(elements.attitudeMixEnabledInput, 'attitudeMix', 'enabled');
 bindNestedNumber(elements.attitudeMixPitchInput, 'attitudeMix', 'pitchMix', (value) => Number(value) / 100);
+bindNestedCheckbox(elements.attitudeMixPitchInvertInput, 'attitudeMix', 'pitchInvert');
 bindNestedNumber(elements.attitudeMixRollInput, 'attitudeMix', 'rollMix', (value) => Number(value) / 100);
+bindNestedCheckbox(elements.attitudeMixRollInvertInput, 'attitudeMix', 'rollInvert');
 bindNestedCheckbox(elements.rotationCorrectionEnabledInput, 'rotationFusion', 'correctionEnabled');
 bindNestedNumber(elements.rotationCorrectionTauInput, 'rotationFusion', 'correctionTauSeconds');
 bindNestedCheckbox(elements.rotationWashoutEnabledInput, 'rotationFusion', 'residualWashoutEnabled');
@@ -987,6 +995,8 @@ bindNestedCheckbox(elements.groundForcesAccelerationCompensationInput, 'groundFo
 bindNestedCheckbox(elements.groundForcesHeaveStabilizationInput, 'groundForces', 'heaveStabilizationEnabled');
 bindNestedNumber(elements.groundForcesLateralMixInput, 'groundForces', 'lateralMix', (value) => Number(value) / 100);
 bindNestedNumber(elements.groundForcesLongitudinalMixInput, 'groundForces', 'longitudinalMix', (value) => Number(value) / 100);
+bindNestedCheckbox(elements.groundForcesLateralInvertInput, 'groundForces', 'lateralInvert');
+bindNestedCheckbox(elements.groundForcesLongitudinalInvertInput, 'groundForces', 'longitudinalInvert');
 bindNestedNumber(elements.groundForcesFilterInput, 'groundForces', 'filterHz');
 bindNestedNumber(elements.groundForcesMaxExtraInput, 'groundForces', 'maxExtraG');
 bindNestedNumber(elements.groundForcesFadeInInput, 'groundForces', 'fadeInSeconds');

@@ -37,7 +37,7 @@ test('CSV recorder writes raw sources, routed outputs and turbulence diagnostics
             referenceRollRad: 0.2,
             referenceValid: true
           },
-          attitudeMix: { vectorG: [0.05, -0.04, 0] },
+          attitudeMix: { inverted: [false, true], vectorG: [0.05, -0.04, 0] },
           groundForces: {
             onGround: true,
             valid: true,
@@ -47,6 +47,8 @@ test('CSV recorder writes raw sources, routed outputs and turbulence diagnostics
             kinematicG: [0.16, -0.25],
             compensatedG: [0.17, -0.26],
             compensationValid: true,
+            inverted: [false, false],
+            axisSigns: [-1, -1],
             unlimitedG: [0.18, -0.28],
             limitedG: [0.17, -0.26],
             appliedG: [0.1275, -0.195],
@@ -147,9 +149,12 @@ test('CSV recorder writes raw sources, routed outputs and turbulence diagnostics
     assert.match(text[0], /sample_dt_s/);
     assert.match(text[0], /gravity_reference_pitch_rad/);
     assert.match(text[0], /attitude_mix_lateral_g/);
+    assert.match(text[0], /attitude_mix_pitch_invert/);
     assert.match(text[0], /ground_forces_blend/);
     assert.match(text[0], /ground_forces_applied_longitudinal_g/);
     assert.match(text[0], /ground_forces_compensated_longitudinal_g/);
+    assert.match(text[0], /ground_forces_longitudinal_invert/);
+    assert.match(text[0], /ground_forces_longitudinal_sign/);
     assert.match(text[0], /ground_heave_applied_g/);
     assert.match(text[0], /ground_forces_lateral_eligible/);
     assert.match(text[0], /shake_mixer_airframe_raw/);

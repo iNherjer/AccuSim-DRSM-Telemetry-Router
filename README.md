@@ -78,12 +78,13 @@ Telemetry Router ── mapping / unit conversion ──► DCS v2 JSON over UDP
 - Automatic A2A attitude compensation when `L:FM_BodyAccelerationY` is selected;
   it stays off for standard `G FORCE` so the `+1 G` resting load is not doubled
 - Optional pitch/roll attitude mix up to 500% that deliberately restores a
-  configurable share of sustained platform tilt without changing heave
+  configurable share of sustained platform tilt without changing heave, with
+  independent pitch and roll direction switches
 - Bias-corrected A2A pitch detail with configurable blend, standard anchor and
   bias-learning time; Legacy A2A integration and residual washout remain available
 - Optional ground-force mixer adds filtered standard lateral/longitudinal body
   acceleration to the AccuSim base only while on the ground, with independent
-  blends, soft limits and smooth takeoff/touchdown transitions
+  blends, direction switches, soft limits and smooth takeoff/touchdown transitions
 - Ground acceleration compensation anchors slow cues to actual world-velocity
   change, rejecting static propeller thrust against held brakes while keeping
   real acceleration, braking, turns and fast surface impacts
@@ -131,7 +132,9 @@ basis is `[0, 0, +1] G`; its compensation components change with pitch and bank.
 The optional attitude mix is off by default. It adds a configurable counter-share
 to the lateral/longitudinal compensation: `0%` keeps full A2A compensation, while
 `100%` restores the attitude-correlated share. This allows a sustained platform
-tilt during held pitch or bank without changing the vertical `+1 G` basis.
+tilt during held pitch or bank without changing the vertical `+1 G` basis. Pitch
+and roll can be inverted independently without changing the normal acceleration
+channels. Both switches preserve the existing direction by default.
 
 The optional ground-force mixer addresses the weak AccuSim lateral and
 longitudinal cues observed during takeoff roll, braking, and ground turns. It
@@ -140,8 +143,10 @@ soft-limit controls, and adds the result only to direct AccuSim `acc[0]/acc[1]`
 mappings. `SIM ON GROUND` drives a continuous exponential blend: the last ground
 sample fades out after liftoff instead of allowing airborne standard acceleration
 to replace AccuSim. A channel already using standard acceleration receives no
-second copy. Its DCS lateral sign is corrected so a left ground turn produces
-the platform's expected rightward counter-tilt.
+second copy. The MSFS lateral and longitudinal signs are mapped to the DCS/DRSM
+cue direction, so a left ground turn produces the expected rightward counter-tilt
+and acceleration produces a backward pitch cue. Both ground axes can then be
+inverted independently for profile- or hardware-specific conventions.
 
 Two subordinate options are enabled by default whenever the ground-force mixer
 is used. Acceleration compensation forms a complementary signal: slow lateral

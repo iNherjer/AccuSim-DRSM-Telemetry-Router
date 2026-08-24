@@ -13,7 +13,7 @@ test('config store creates and atomically persists bridge configuration', () => 
     const store = new BridgeConfigStore({ dataDirectory: root });
     const initial = store.read();
     assert.equal(initial.port, 4135);
-    assert.equal(initial.schemaVersion, 12);
+    assert.equal(initial.schemaVersion, 13);
     assert.equal(initial.language, 'de');
     assert.equal(initial.expertMode, false);
     assert.equal(initial.unsafeMode, false);
@@ -23,11 +23,15 @@ test('config store creates and atomically persists bridge configuration', () => 
     assert.equal(initial.attitudeMix.enabled, false);
     assert.equal(initial.attitudeMix.pitchMix, 1);
     assert.equal(initial.attitudeMix.rollMix, 1);
+    assert.equal(initial.attitudeMix.pitchInvert, false);
+    assert.equal(initial.attitudeMix.rollInvert, false);
     assert.equal(initial.groundForces.enabled, false);
     assert.equal(initial.groundForces.accelerationCompensationEnabled, true);
     assert.equal(initial.groundForces.heaveStabilizationEnabled, true);
     assert.equal(initial.groundForces.lateralMix, 1);
     assert.equal(initial.groundForces.longitudinalMix, 1);
+    assert.equal(initial.groundForces.lateralInvert, false);
+    assert.equal(initial.groundForces.longitudinalInvert, false);
     assert.equal(initial.groundForces.filterHz, 5);
     assert.equal(initial.groundForces.maxExtraG, 0.6);
     assert.equal(initial.groundForces.fadeInSeconds, 0.35);

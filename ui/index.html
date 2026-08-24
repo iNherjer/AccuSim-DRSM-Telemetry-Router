@@ -145,9 +145,15 @@
                 <span class="setting-label"><span data-i18n="attitudeMix.pitch">Pitch → längs (%)</span> <span class="help-tip" tabindex="0" role="note" data-i18n-tooltip="tooltip.attitudeMixPitch">?</span></span>
                 <input id="attitudeMixPitchInput" type="number" min="0" max="500" step="5" data-i18n-title="tooltip.attitudeMixPitch">
               </label>
+              <label class="axis-invert-setting switch-label" data-i18n-title="tooltip.attitudeMixPitchInvert">
+                <input id="attitudeMixPitchInvertInput" type="checkbox"><span data-i18n="attitudeMix.pitchInvert">Pitch-Richtung invertieren</span>
+              </label>
               <label>
                 <span class="setting-label"><span data-i18n="attitudeMix.roll">Roll → quer (%)</span> <span class="help-tip" tabindex="0" role="note" data-i18n-tooltip="tooltip.attitudeMixRoll">?</span></span>
                 <input id="attitudeMixRollInput" type="number" min="0" max="500" step="5" data-i18n-title="tooltip.attitudeMixRoll">
+              </label>
+              <label class="axis-invert-setting switch-label" data-i18n-title="tooltip.attitudeMixRollInvert">
+                <input id="attitudeMixRollInvertInput" type="checkbox"><span data-i18n="attitudeMix.rollInvert">Roll-Richtung invertieren</span>
               </label>
             </div>
             <div class="processor-live-row">
@@ -229,6 +235,12 @@
             <label>
               <span class="setting-label"><span data-i18n="groundForces.longitudinalMix">Längskraft-Mix (%)</span> <span class="help-tip" tabindex="0" role="note" data-i18n-tooltip="tooltip.groundForcesLongitudinalMix">?</span></span>
               <input id="groundForcesLongitudinalMixInput" type="number" min="0" max="200" step="5" data-i18n-title="tooltip.groundForcesLongitudinalMix">
+            </label>
+            <label class="axis-invert-setting switch-label" data-i18n-title="tooltip.groundForcesLateralInvert">
+              <input id="groundForcesLateralInvertInput" type="checkbox"><span data-i18n="groundForces.lateralInvert">Querkraft invertieren</span>
+            </label>
+            <label class="axis-invert-setting switch-label" data-i18n-title="tooltip.groundForcesLongitudinalInvert">
+              <input id="groundForcesLongitudinalInvertInput" type="checkbox"><span data-i18n="groundForces.longitudinalInvert">Längskraft invertieren</span>
             </label>
             <label>
               <span class="setting-label"><span data-i18n="groundForces.filter">Glättung (Hz)</span> <span class="help-tip" tabindex="0" role="note" data-i18n-tooltip="tooltip.groundForcesFilter">?</span></span>

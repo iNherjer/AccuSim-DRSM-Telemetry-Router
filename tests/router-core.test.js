@@ -495,7 +495,7 @@ test('legacy full default is migrated to the reduced basic output set', () => {
   legacy.channels['vel.0'].enabled = true;
   legacy.channels.gear_left.enabled = true;
   const normalized = normalizeConfig(legacy);
-  assert.equal(normalized.schemaVersion, 12);
+  assert.equal(normalized.schemaVersion, 13);
   assert.equal(normalized.expertMode, true);
   assert.equal(normalized.channels['acc.0'].enabled, true);
   assert.equal(normalized.channels['vel.0'].enabled, false);
@@ -523,7 +523,7 @@ test('schema v4 migration removes the known gravity workaround and upgrades A2A 
   config.channels['acc.2'].offset = 2;
   config.channels['ang_vel.0'].operation = 'integrate';
   const normalized = normalizeConfig(config);
-  assert.equal(normalized.schemaVersion, 12);
+  assert.equal(normalized.schemaVersion, 13);
   assert.equal(normalized.channels['acc.2'].offset, 0);
   assert.equal(normalized.channels['acc.2'].sourceId, 'std.gforce');
   assert.equal(normalized.channels['ang_vel.0'].operation, 'fuse_v2');
@@ -536,7 +536,7 @@ test('schema v7 upgrades only an untouched Legacy motion mapping to V2', () => {
   const legacy = applyMotionProfile(buildDefaultConfig(), MOTION_MIX_PROFILES.legacy);
   legacy.schemaVersion = 7;
   const upgraded = normalizeConfig(legacy);
-  assert.equal(upgraded.schemaVersion, 12);
+  assert.equal(upgraded.schemaVersion, 13);
   assert.equal(upgraded.channels['acc.2'].sourceId, 'std.gforce');
   assert.equal(upgraded.channels['ang_vel.0'].operation, 'fuse_v2');
   assert.equal(upgraded.channels['ang_vel.1'].sourceId, 'std.angular.body.z');
@@ -690,6 +690,39 @@ test('optional attitude mix adds only sustained pitch and roll components', () =
   close(result.packet.acc[1], -unitVector[1]);
   close(result.packet.acc[2], 0);
   close(result.diagnostics.attitudeMix.vectorG[2], 0);
+  assert.deepEqual(result.diagnostics.attitudeMix.inverted, [false, false]);
+});
+
+test('attitude pitch and roll direction can be inverted independently', () => {
+  const config = buildDefaultConfig();
+  config.channels['acc.2'] = { ...MOTION_MIX_PROFILES.v2.channels['acc.2'] };
+  config.attitudeMix.enabled = true;
+  config.attitudeMix.pitchMix = 1;
+  config.attitudeMix.rollMix = 1;
+  config.attitudeMix.pitchInvert = true;
+  config.attitudeMix.rollInvert = true;
+  const source = {
+    'a2a.acc.x': 0,
+    'a2a.acc.z': 0,
+    'std.gforce': 0,
+    'a2a.rotacc.x': 0,
+    'std.angular.body.x': 0,
+    'std.angular.body.y': 0,
+    'std.angular.body.z': 0,
+    'std.pitch': 10,
+    'std.bank': 20,
+    'std.heading': 0,
+    'std.alt.agl': 0,
+    'std.airspeed.ias': 0,
+    'a2a.stall': 0,
+    'a2a.engine.rpm': 0
+  };
+  const result = new RouterCore(config).update(source, 0);
+  const reference = gravityReferenceAttitude(source, config.channels);
+  const unitVector = gravityVector(reference.pitch, reference.roll, 1);
+  close(result.packet.acc[0], unitVector[0]);
+  close(result.packet.acc[1], unitVector[1]);
+  assert.deepEqual(result.diagnostics.attitudeMix.inverted, [true, true]);
 });
 
 test('attitude mix accepts tester gains up to 500 percent', () => {
@@ -699,6 +732,8 @@ test('attitude mix accepts tester gains up to 500 percent', () => {
   const normalized = normalizeConfig(config);
   close(normalized.attitudeMix.pitchMix, 5);
   close(normalized.attitudeMix.rollMix, 5);
+  assert.equal(normalized.attitudeMix.pitchInvert, false);
+  assert.equal(normalized.attitudeMix.rollInvert, false);
 });
 
 test('ground forces fade continuously into A2A on ground and out again in flight', () => {
@@ -730,7 +765,7 @@ test('ground forces fade continuously into A2A on ground and out again in flight
   for (let index = 1; index <= 20; index += 1) grounded = core.update(source, index * 0.02);
   assert(grounded.diagnostics.groundForces.blend > 0.999);
   const expectedLateral = 2 * Math.tanh(0.2 / 2);
-  const expectedLongitudinal = 2 * Math.tanh(-0.3 / 2);
+  const expectedLongitudinal = 2 * Math.tanh(0.3 / 2);
   close(grounded.packet.acc[0], 0.1 - expectedLateral * grounded.diagnostics.groundForces.blend, 1e-9);
   close(grounded.packet.acc[1], -0.2 + expectedLongitudinal * grounded.diagnostics.groundForces.blend, 1e-9);
 
@@ -854,9 +889,50 @@ test('ground acceleration compensation rejects static thrust and keeps true moti
     source['std.velocity.world.z'] = 0.2 * oneGFps2 * time;
     movingResult = movingCore.update(source, time);
   }
-  assert(movingResult.packet.acc[1] > 0.19);
+  assert(movingResult.packet.acc[1] < -0.19);
   assert(movingResult.packet.acc[0] < -0.19);
   assert(movingResult.diagnostics.groundForces.kinematicG[0] > 0.19);
+});
+
+test('ground lateral and longitudinal direction can be inverted independently', () => {
+  const makeConfig = (lateralInvert, longitudinalInvert) => {
+    const config = buildDefaultConfig();
+    Object.values(config.channels).forEach((channel) => { channel.enabled = false; });
+    config.channels['acc.0'] = { ...MOTION_MIX_PROFILES.v2.channels['acc.0'] };
+    config.channels['acc.1'] = { ...MOTION_MIX_PROFILES.v2.channels['acc.1'] };
+    config.groundForces.enabled = true;
+    config.groundForces.accelerationCompensationEnabled = false;
+    config.groundForces.heaveStabilizationEnabled = false;
+    config.groundForces.fadeInSeconds = 0.05;
+    config.groundForces.maxExtraG = 2;
+    config.groundForces.lateralInvert = lateralInvert;
+    config.groundForces.longitudinalInvert = longitudinalInvert;
+    return config;
+  };
+  const oneGFps2 = 9.80665 / 0.3048;
+  const source = {
+    'a2a.acc.x': 0,
+    'a2a.acc.z': 0,
+    'std.acc.body.x': 0.2 * oneGFps2,
+    'std.acc.body.z': 0.2 * oneGFps2,
+    'std.on_ground': 1
+  };
+  const updateToFullBlend = (config) => {
+    const core = new RouterCore(config);
+    let result;
+    for (let index = 0; index <= 8; index += 1) result = core.update(source, index * 0.02);
+    return result;
+  };
+  const corrected = updateToFullBlend(makeConfig(false, false));
+  assert(corrected.packet.acc[0] < 0);
+  assert(corrected.packet.acc[1] < 0);
+  assert.deepEqual(corrected.diagnostics.groundForces.axisSigns, [-1, -1]);
+
+  const inverted = updateToFullBlend(makeConfig(true, true));
+  assert(inverted.packet.acc[0] > 0);
+  assert(inverted.packet.acc[1] > 0);
+  assert.deepEqual(inverted.diagnostics.groundForces.inverted, [true, true]);
+  assert.deepEqual(inverted.diagnostics.groundForces.axisSigns, [1, 1]);
 });
 
 test('ground heave stabilization removes the one-frame G FORCE transition at lift-off', () => {
