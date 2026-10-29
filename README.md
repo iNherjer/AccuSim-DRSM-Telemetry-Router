@@ -217,6 +217,42 @@ Pure integration remains available in Expert mode for diagnostic comparison.
 
 ## Quick start
 
+### FlyPT Mover 3.5.3 (experimental)
+
+Select **FlyPT Mover 3.5.3 (DCS UDP)** in the bridge's output-format dropdown.
+In Mover 3.5.3 add a **DCS** source, set its receive port to **4124**, and connect.
+The bridge destination host is `127.0.0.1` on the same PC, or the Mover PC's LAN
+address. Allow incoming UDP on that PC. Stop DRSM during the first test.
+No DCS installation, patch or Lua script is needed: the bridge is the sender.
+Switching formats adjusts the standard port (4135/4124); custom ports are preserved.
+
+This encoder follows `Files for sources/DCS_To_FlyPT_Mover.lua` from the official
+[3.5.3 download](https://www.flyptmover.com/mover-3-5/downloads), dated 27 August
+2021 (the bundled script header says 3.5.2). Exactly 25 space-separated numbers
+with four decimal places are sent. The mapping UI and CSV retain their existing
+DRSM units/order; conversion happens after all channel processing and mixers.
+Enable the optional `vel.0/1/2`, `tas`, flap, gear, canopy, stall and AoA channels
+in Expert mode if those values are required. Disabled fields send zero.
+
+| FlyPT positions (zero-based) | Data |
+| --- | --- |
+| 0–2 | DCS raw X/Z/Y acceleration in G (internal acc.1/0/2) |
+| 3–5 | DCS world X/Z/Y velocity in m/s (internal vel.1/0/2) |
+| 6–8 | Yaw/roll/pitch rates in rad/s (internal ang_vel.2/1/0) |
+| 9–11 | Heading/bank/pitch in radians (internal yaw negated, roll, pitch) |
+| 12 | True airspeed in m/s |
+| 13–16 | Suspension/steering draw arguments: zero, unavailable |
+| 17–24 | AGL metres, flaps, gear, speedbrakes, canopy, stall, AoA radians, seconds |
+
+Gear extension is not suspension compression. Automatic Mover air/ground
+selection may therefore need manual configuration; it has not been validated.
+This protocol has no engine RPM or raw shake fields. Shake/turbulence mixed into
+motion channels is included. First validate live input values and directions
+in Mover before enabling platform movement. Actual Windows/Mover validation is
+still pending; 3.7 uses a different protocol and is not covered by this option.
+
+### DRSM
+
 1. Download the latest
    [Windows setup bootstrapper](https://github.com/iNherjer/AccuSim-DRSM-Telemetry-Router/releases/latest/download/AccuSim-DRSM-Telemetry-Router-Setup.exe).
 2. Start Microsoft Flight Simulator and load the A2A Comanche.

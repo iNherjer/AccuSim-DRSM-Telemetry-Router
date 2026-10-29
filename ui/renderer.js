@@ -2,8 +2,8 @@
 
 const elements = Object.fromEntries([
   'versionLine', 'processBadge', 'simDot', 'simStatus', 'udpDot', 'udpStatus',
-  'sampleRate', 'packetCount', 'nameInput', 'hostInput', 'portInput', 'periodSelect',
-  'saveStatus', 'startButton', 'stopButton', 'disableAllButton', 'resetButton',
+  'sampleRate', 'packetCount', 'nameInput', 'hostInput', 'portInput', 'periodSelect', 'protocolSelect',
+  'saveStatus', 'protocolHint', 'startButton', 'stopButton', 'disableAllButton', 'resetButton',
   'recordButton', 'stopRecordButton', 'recordingDetail',
   'openFolderButton', 'runtimeDetail', 'filterInput', 'mappingGroups',
   'customSourceForm', 'customLabelInput', 'customVarInput', 'customUnitSelect',
@@ -688,6 +688,9 @@ function renderConfig() {
   elements.nameInput.value = draftConfig.name;
   elements.hostInput.value = draftConfig.host;
   elements.portInput.value = draftConfig.port;
+  elements.protocolSelect.value = draftConfig.outputProtocol;
+  elements.protocolHint.textContent = t(draftConfig.outputProtocol === 'flypt353'
+    ? 'connection.flyptHint' : 'connection.drsmHint');
   elements.periodSelect.value = draftConfig.period;
   renderDynamicsConfig();
   applyViewMode();
@@ -881,9 +884,11 @@ function renderLive(runtime = {}) {
   }
 
   if (runtime.packetPreview) {
-    elements.packetPreview.textContent = JSON.stringify(runtime.packetPreview, null, 2);
+    elements.packetPreview.textContent = typeof runtime.packetPreview === 'string'
+      ? runtime.packetPreview : JSON.stringify(runtime.packetPreview, null, 2);
     elements.packetSummary.textContent = t('packet.summary', {
-      fields: Object.keys(runtime.packetPreview).length,
+      fields: typeof runtime.packetPreview === 'string'
+        ? runtime.packetPreview.split(' ').length : Object.keys(runtime.packetPreview).length,
       packets: runtime.packets || 0
     });
   } else {
@@ -951,6 +956,15 @@ bindConfigInput(elements.nameInput, 'name', (value) => value.trim());
 bindConfigInput(elements.hostInput, 'host', (value) => value.trim());
 bindConfigInput(elements.portInput, 'port', Number);
 bindConfigInput(elements.periodSelect, 'period');
+elements.protocolSelect.addEventListener('change', () => {
+  const previousDefault = draftConfig.outputProtocol === 'flypt353' ? 4124 : 4135;
+  draftConfig.outputProtocol = elements.protocolSelect.value;
+  if (Number(draftConfig.port) === previousDefault) {
+    draftConfig.port = draftConfig.outputProtocol === 'flypt353' ? 4124 : 4135;
+  }
+  renderConfig();
+  queueSave();
+});
 
 elements.languageSelect.addEventListener('change', () => {
   if (!draftConfig) return;

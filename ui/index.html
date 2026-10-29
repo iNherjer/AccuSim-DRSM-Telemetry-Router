@@ -78,6 +78,12 @@
         </div>
       </div>
       <div class="settings-grid">
+        <label><span data-i18n="connection.protocol">Ausgabeformat</span>
+          <select id="protocolSelect" data-i18n-title="connection.protocolHelp">
+            <option value="drsm">DRSM (DCS v2 JSON)</option>
+            <option value="flypt353">FlyPT Mover 3.5.3 (DCS UDP)</option>
+          </select>
+        </label>
         <label><span data-i18n="connection.packetName">Paketname</span><input id="nameInput" maxlength="100"></label>
         <label><span data-i18n="connection.host">DRSM Host</span><input id="hostInput" maxlength="255"></label>
         <label><span data-i18n="connection.port">UDP-Port</span><input id="portInput" type="number" min="1" max="65535"></label>
@@ -88,7 +94,7 @@
           </select>
         </label>
       </div>
-      <p class="hint" data-i18n="connection.hint">DRSM als Quelle DCS World mit Port 4135 verwenden. Änderungen an Quellen oder Abtastung verbinden SimConnect automatisch neu.</p>
+      <p id="protocolHint" class="hint" aria-live="polite"></p>
       <div class="action-row">
         <button id="startButton" class="primary-button" type="button" data-i18n="connection.start">Bridge starten</button>
         <button id="stopButton" class="secondary-button" type="button" data-i18n="connection.stop">Stoppen</button>
