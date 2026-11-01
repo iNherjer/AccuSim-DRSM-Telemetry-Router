@@ -421,7 +421,80 @@ function makeMappingRow(output) {
   outputLive.title = t('mapping.outputLiveTooltip');
 
   row.append(enable, sourceSelect, invert, unitSelect, operationSelect, scale, offset, inputLive, outputLabel, outputLive);
+  const family = state.catalog.units[output.targetUnit]?.family;
+  if (!output.integer && !['boolean', 'count'].includes(family)) {
+    const unit = ({ g: 'G', radians: 'rad', radps: 'rad/s', mps: 'm/s', meters: 'm', rpm: 'RPM', ratio: '0…1' })[output.targetUnit]
+      || localizedLabel(state.catalog.units[output.targetUnit]) || output.targetUnit;
+    const panel = makeSignalFilterPanel(`channel.${output.id}`, output.id, unit,
+      channel.filter, (patch) => updateChannel(output.id, { filter: { ...draftConfig.channels[output.id].filter, ...patch } }));
+    row.appendChild(panel);
+  }
   return row;
+}
+
+function makeSignalFilterPanel(id, label, unit, settings, onChange) {
+  const rampUnit = unit === 'rad/s' ? 'rad/s²' : unit === 'm/s' ? 'm/s²' : `${unit}/s`;
+  const panel = document.createElement('details');
+  panel.className = 'signal-filter-panel';
+  panel.dataset.filterId = id;
+  const summary = document.createElement('summary');
+  summary.textContent = `${t('filter.title')} · ${label}`;
+  panel.appendChild(summary);
+  const hint = document.createElement('p');
+  hint.className = 'hint';
+  hint.textContent = t('filter.hint');
+  panel.appendChild(hint);
+  const fields = document.createElement('div');
+  fields.className = 'signal-filter-fields';
+  for (const [key, max, caption, help] of [
+    ['smoothingMs', 5000, t('filter.smoothing'), t('filter.smoothingHelp')],
+    ['ramp', 1000000, `${t('filter.ramp')} (${rampUnit})`, t('filter.rampHelp')]
+  ]) {
+    const field = document.createElement('label');
+    const title = document.createElement('span');
+    title.textContent = caption;
+    const input = document.createElement('input');
+    input.type = 'number';
+    input.min = 0;
+    input.max = max;
+    input.step = 'any';
+    input.value = settings?.[key] || 0;
+    input.title = help;
+    field.title = help;
+    input.setAttribute('aria-label', `${label}: ${caption}`);
+    input.addEventListener('change', () => {
+      const value = Number(input.value);
+      if (!Number.isFinite(value)) return;
+      input.value = Math.min(max, Math.max(0, value));
+      onChange({ [key]: Number(input.value) });
+    });
+    field.append(title, input);
+    fields.appendChild(field);
+  }
+  const live = document.createElement('output');
+  live.dataset.signalFilterLive = id;
+  live.dataset.filterUnit = unit;
+  live.className = 'live-value';
+  live.textContent = '—';
+  live.title = t('filter.liveHelp');
+  fields.appendChild(live);
+  panel.appendChild(fields);
+  return panel;
+}
+
+function renderMixerSignalFilters() {
+  document.querySelectorAll('[data-mixer-filter-panel]').forEach((panel) => panel.remove());
+  for (const definition of state.catalog.mixerFilters || []) {
+    const parent = document.getElementById(definition.anchor)?.closest('.processor-card');
+    if (!parent) continue;
+    const panel = makeSignalFilterPanel(definition.id, language() === 'en' ? definition.en : definition.de, 'G',
+      draftConfig.mixerFilters?.[definition.id], (patch) => {
+        draftConfig.mixerFilters[definition.id] = { ...draftConfig.mixerFilters[definition.id], ...patch };
+        queueSave();
+      });
+    panel.dataset.mixerFilterPanel = definition.id;
+    parent.appendChild(panel);
+  }
 }
 
 function turbulenceSourceOptions(selectedId) {
@@ -512,7 +585,8 @@ function applyMotionMixProfile(profileId) {
   const profile = state?.catalog?.motionMixProfiles?.[profileId];
   if (!profile?.channels) return;
   for (const [outputId, channel] of Object.entries(profile.channels)) {
-    draftConfig.channels[outputId] = clone(channel);
+    const filter = draftConfig.channels[outputId]?.filter || { smoothingMs: 0, ramp: 0 };
+    draftConfig.channels[outputId] = { ...clone(channel), filter: { ...filter } };
   }
   const vertical = draftConfig.channels['acc.2'];
   draftConfig.gravity.enabled = vertical.enabled === true && vertical.sourceId === 'a2a.acc.y';
@@ -598,6 +672,7 @@ function renderDynamicsConfig() {
   elements.turbulenceLateralWindInvertInput.checked = draftConfig.turbulence?.lateralWindInvert === true;
   renderMotionMixState();
   renderTurbulencePresetState();
+  renderMixerSignalFilters();
 }
 
 function renderMappings() {
@@ -775,6 +850,11 @@ function queueSave(forceRender = false) {
 }
 
 function renderLive(runtime = {}) {
+  for (const element of document.querySelectorAll('[data-signal-filter-live]')) {
+    const values = runtime.diagnostics?.signalFilters?.[element.dataset.signalFilterLive];
+    element.textContent = values
+      ? `${numberText(values.input, 4)} → ${numberText(values.output, 4)} ${element.dataset.filterUnit}` : '—';
+  }
   const runtimeDetail = runtime.detailKey ? t(runtime.detailKey, runtime.detailArgs || {}) : runtime.detail;
   const runtimeError = runtime.lastErrorKey ? t(runtime.lastErrorKey, runtime.lastErrorArgs || {}) : runtime.lastError;
   const running = runtime.process === 'running';

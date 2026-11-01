@@ -227,6 +227,12 @@ body.expert-mode .expert-only-section { display: block; }
 .mapping-row:last-child { border-bottom: 0; }
 .mapping-row.disabled { opacity: .48; }
 .ball-cue-settings { padding: 10px 16px 16px; border-bottom: 1px solid rgba(147,177,202,.15); }
+.signal-filter-panel { grid-column: 1 / -1; padding: 8px 10px; border: 1px solid rgba(147,177,202,.15); border-radius: 8px; margin: 5px 0; }
+.signal-filter-panel > summary { cursor: pointer; font-size: 12px; color: #9fc4de; }
+.signal-filter-fields { display: grid; grid-template-columns: repeat(2, minmax(95px, 1fr)) minmax(130px, 1fr); gap: 10px; align-items: end; margin-top: 8px; }
+.signal-filter-fields label { display: grid; gap: 5px; font-size: 11px; }
+.signal-filter-fields input { width: 100%; min-width: 0; }
+.signal-filter-fields output { font-size: 11px; align-self: center; overflow-wrap: anywhere; }
 .mapping-row.mapping-error { background: rgba(255,116,134,.055); }
 .mapping-row input, .mapping-row select { height: 34px; font-size: 11px; }
 .channel-toggle { width: 18px !important; height: 18px !important; justify-self: center; accent-color: var(--blue); }

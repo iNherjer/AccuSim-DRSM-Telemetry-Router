@@ -25,6 +25,10 @@ test('CSV recorder writes raw sources, routed outputs and turbulence diagnostics
         packet: { t: 0.02 },
         outputValues: { 'acc.2': -0.85 },
         diagnostics: {
+          signalFilters: {
+            'channel.acc.2': { input: 1.4, smoothed: 1.1, output: 1.04, smoothingMs: 100, ramp: 2, reset: false },
+            'turbulence.wind': { input: 0.8, smoothed: 0.05, output: 0.01, smoothingMs: 200, ramp: 0.5, reset: false }
+          },
           timing: {
             sampleDtSeconds: 0.02,
             gapDetected: true,
@@ -140,6 +144,10 @@ test('CSV recorder writes raw sources, routed outputs and turbulence diagnostics
     assert.equal(stopped.rows, 1);
     const text = fs.readFileSync(started.path, 'utf8').trim().split(/\r?\n/);
     assert.equal(text[1].split(',').length, text[0].split(',').length);
+    const headers = text[0].split(','), values = text[1].split(',');
+    assert.equal(values[headers.indexOf('filter_channel_acc_2_input')], '1.4000000');
+    assert.equal(values[headers.indexOf('filter_channel_acc_2_output')], '1.0400000');
+    assert.equal(values[headers.indexOf('filter_turbulence_wind_ramp')], '0.5000000');
     assert.match(text[0], /src_a2a_acc_y_mps2/);
     assert.match(text[0], /out_acc_2_g/);
     assert.match(text[0], /turbulence_extra_g/);

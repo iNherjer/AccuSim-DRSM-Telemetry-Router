@@ -217,6 +217,48 @@ Pure integration remains available in Expert mode for diagnostic comparison.
 
 ## Quick start
 
+### Smoothing and ramp (optional)
+
+Expand **Glättung & Rampe / Smoothing & ramp** beneath a continuous output
+channel or in a mixer. Both values default to **0 = off**; existing data paths
+are unchanged when bypassed. Boolean switches and event counters are excluded.
+
+- **Smoothing (ms):** low-pass time constant, not a completion time. Larger
+  values reduce short spikes and delay reversals. A sustained value is retained,
+  including the vertical 1 G resting load; this is not a washout.
+- **Ramp:** maximum change per second in the displayed output unit (e.g. G/s
+  or rad/s²). Smaller positive values soften motion; larger values follow the
+  source more directly. Zero is bypass, not a frozen output.
+
+Channel shaping follows unit conversion, scaling and fusion, before mixer
+additions. It does not alter the underlying subscribed raw source, the input
+to integration/fusion, or another consumer of the same source. Mixer shaping
+is independent: main turbulence, vertical wind, lateral wind, ground lateral,
+ground longitudinal, ground heave correction, pitch/roll attitude contributions,
+and each of the three shake sources. Wind shaping follows differentiation and
+band filtering, in G; lateral wind is shaped before force/rotation distribution.
+Shakes are shaped before the per-axis matrix, so later mix gains still apply.
+Physical gravity compensation remains unfiltered to keep its reference intact.
+There is no new global final-output limiter: filtered contributions can add up.
+
+The new controls supplement the existing ground prefilter and shake/turbulence
+band filters, whose frequency settings remain unchanged. Fast changes are rounded
+and delayed, not perfectly preserved; very brief alternating impulses weaken.
+This filters telemetry, not actuator trajectories or the DRSM output controller.
+
+Filter state starts at the first valid contribution instead of ramping from 0.
+Telemetry gaps, source changes or inactive branches discard stale state.
+Enabling uses available recent state; setting both values to 0 immediately
+restores raw pass-through. Disabling a mixer/channel removes its contribution
+as before. These bypass and reset events are not guaranteed ramped transitions.
+Active angle filters take the shortest route across the ±π/2π boundary and
+may output continuous angles outside the original wrapped range.
+
+Live labels show **before → after**. CSV keeps original raw inputs and final
+outputs, and appends `filter_*` columns for contribution input, smoothed value,
+output, smoothing time, ramp setting and reset status. Channel filter values use
+their output units; mixer values are G before any downstream distribution/limit.
+
 ### Experimental Comanche ball lateral cue
 
 For `acc.0`, select **L:InclinometerBall** as an alternative to FM Body

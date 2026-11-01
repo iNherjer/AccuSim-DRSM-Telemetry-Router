@@ -30,6 +30,7 @@ const {
   buildDefaultConfig
 } = require('./lib/catalog');
 const { allSources } = require('./lib/router-core');
+const { MIXER_FILTERS } = require('./lib/signal-filter');
 const { TRANSLATIONS, translate } = require('./lib/i18n');
 const { TelemetryRuntime } = require('./lib/telemetry-runtime');
 const { UpdateController } = require('./lib/update-controller');
@@ -68,6 +69,7 @@ function publicCatalog() {
     builtinSources: BUILTIN_SOURCES,
     sources: allSources(config),
     outputs: OUTPUTS,
+    mixerFilters: MIXER_FILTERS,
     groupLabels: GROUP_LABELS,
     motionMixProfiles: MOTION_MIX_PROFILES,
     units: UNIT_DEFINITIONS,
