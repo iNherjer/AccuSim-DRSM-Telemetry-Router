@@ -325,6 +325,7 @@ function makeMappingRow(output) {
     const nextInputUnit = selectedSource?.inputUnit || unitSelect.value;
     const compatibleOperations = safeOperationIds(nextInputUnit, output.targetUnit);
     let nextOperation = operationSelect.value;
+    if (selectedSource?.id === 'a2a.ball') nextOperation = 'ball_cue';
     if (!draftConfig.expertMode && simpleRule?.operation) nextOperation = simpleRule.operation;
     if (draftConfig.expertMode && !draftConfig.unsafeMode && !compatibleOperations.includes(nextOperation)) {
       nextOperation = compatibleOperations[0] || nextOperation;
@@ -339,6 +340,7 @@ function makeMappingRow(output) {
       inputUnit: nextInputUnit,
       operation: nextOperation
     });
+    if (output.id === 'acc.0') renderMappings();
   });
 
   const selectedSource = state.catalog.sources.find((entry) => entry.id === channel.sourceId);
@@ -618,7 +620,42 @@ function renderMappings() {
     section.appendChild(summary);
     const body = document.createElement('div');
     body.className = 'mapping-group-body';
-    outputs.forEach((output) => body.appendChild(makeMappingRow(output)));
+    outputs.forEach((output) => {
+      body.appendChild(makeMappingRow(output));
+      if (output.id === 'acc.0' && draftConfig.channels['acc.0'].sourceId === 'a2a.ball') {
+        const panel = document.createElement('div');
+        panel.className = 'ball-cue-settings';
+        const hint = document.createElement('p');
+        hint.className = 'hint';
+        hint.textContent = t('ball.hint');
+        panel.appendChild(hint);
+        const fields = document.createElement('div');
+        fields.className = 'settings-grid';
+        for (const [key, min, max] of [['center', null, null], ['gainG', 0, 5], ['limitG', 0.01, 1]]) {
+          const label = document.createElement('label');
+          const caption = document.createElement('span');
+          caption.textContent = t(`ball.${key}`);
+          const input = document.createElement('input');
+          input.type = 'number';
+          input.step = 'any';
+          if (min !== null) input.min = min;
+          if (max !== null) input.max = max;
+          input.value = draftConfig.ballCue[key];
+          input.title = t(`ball.${key}Help`);
+          input.addEventListener('change', () => {
+            const value = Number(input.value);
+            if (!Number.isFinite(value)) return;
+            draftConfig.ballCue[key] = min === null ? value : Math.max(min, Math.min(max, value));
+            input.value = draftConfig.ballCue[key];
+            queueSave();
+          });
+          label.append(caption, input);
+          fields.appendChild(label);
+        }
+        panel.appendChild(fields);
+        body.appendChild(panel);
+      }
+    });
     section.appendChild(body);
     elements.mappingGroups.appendChild(section);
   }

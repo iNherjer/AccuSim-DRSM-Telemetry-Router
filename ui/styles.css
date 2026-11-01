@@ -226,6 +226,7 @@ body.expert-mode .expert-only-section { display: block; }
 .mapping-row { min-height: 54px; padding: 7px 9px; border-bottom: 1px solid rgba(147,177,202,.09); }
 .mapping-row:last-child { border-bottom: 0; }
 .mapping-row.disabled { opacity: .48; }
+.ball-cue-settings { padding: 10px 16px 16px; border-bottom: 1px solid rgba(147,177,202,.15); }
 .mapping-row.mapping-error { background: rgba(255,116,134,.055); }
 .mapping-row input, .mapping-row select { height: 34px; font-size: 11px; }
 .channel-toggle { width: 18px !important; height: 18px !important; justify-self: center; accent-color: var(--blue); }

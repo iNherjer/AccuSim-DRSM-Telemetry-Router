@@ -217,6 +217,29 @@ Pure integration remains available in Expert mode for diagnostic comparison.
 
 ## Quick start
 
+### Experimental Comanche ball lateral cue
+
+For `acc.0`, select **L:InclinometerBall** as an alternative to FM Body
+Acceleration X. The exact LVar and the expected −1…+1 range were supplied by
+the user; readback, centering and direction still need in-simulator validation.
+This is an instrument-derived motion cue, not a physically calibrated G sensor.
+The default FM source is unchanged.
+
+Selecting the ball reveals settings in both Basic and Expert views: raw center
+(default 0), G at full deflection (default 0.10 G), and ball-channel limit
+(default ±0.25 G). The conversion is:
+
+`clamp(clamp(raw - center, -1, 1) * fullScaleG * channelFactor * invertSign + channelOffset, -limitG, limitG)`
+
+Use the `acc.0` invert checkbox to establish the correct direction. There is no
+extra smoothing or automatic recentering. The ball raw value is also subscribed
+for CSV diagnostics, so it can be compared with FM and standard acceleration.
+A centered ball in a coordinated turn yields no lateral ball cue; attitude
+mixing remains a separate feature. The existing FM-specific ground lateral
+supplement does not apply with the ball selected. Later attitude, shake, gravity
+or wind additions may still affect the final output and are outside the ball
+channel limit. DRSM and FlyPT both receive the resulting motion channel.
+
 ### FlyPT Mover 3.5.3 (experimental)
 
 Select **FlyPT Mover 3.5.3 (DCS UDP)** in the bridge's output-format dropdown.

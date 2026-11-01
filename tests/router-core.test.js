@@ -464,11 +464,15 @@ test('basic view exposes only relevant standard and A2A sources', () => {
     'pitch', 'roll', 'yaw', 'alt_agl', 'ias', 'stall', 'rpm_left', 'prop_rpm'
   ]);
   for (const output of basicOutputs) {
-    assert(output.simpleSources.length >= 1 && output.simpleSources.length <= 2);
+    assert(output.simpleSources.length >= 1 && output.simpleSources.length <= (output.id === 'acc.0' ? 3 : 2));
     for (const rule of output.simpleSources) {
       assert.equal(sourceIds.has(rule.sourceId), true, `${output.id}: ${rule.sourceId}`);
       assert.equal(['std.', 'a2a.'].some((prefix) => rule.sourceId.startsWith(prefix)), true);
-      assert.equal(['direct', 'integrate', 'fuse'].includes(rule.operation), true);
+      assert.equal(['direct', 'integrate', 'fuse', 'ball_cue'].includes(rule.operation), true);
+      if (rule.operation === 'ball_cue') {
+        assert.equal(output.id, 'acc.0');
+        assert.equal(rule.sourceId, 'a2a.ball');
+      }
     }
   }
 });
