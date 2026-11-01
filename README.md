@@ -219,8 +219,8 @@ Pure integration remains available in Expert mode for diagnostic comparison.
 
 ### Smoothing and ramp (optional)
 
-Expand **Glättung & Rampe / Smoothing & ramp** beneath a continuous output
-channel or in a mixer. Both values default to **0 = off**; existing data paths
+Use the **Glättung / Smoothing** and **Rampe / Ramp** fields directly in each
+continuous output row; mixer controls remain expandable. Both values default to **0 = off**; existing data paths
 are unchanged when bypassed. Boolean switches and event counters are excluded.
 
 - **Smoothing (ms):** low-pass time constant, not a completion time. Larger
@@ -267,7 +267,7 @@ the user; readback, centering and direction still need in-simulator validation.
 This is an instrument-derived motion cue, not a physically calibrated G sensor.
 The default FM source is unchanged.
 
-Selecting the ball reveals settings in both Basic and Expert views: raw center
+Selecting the ball reveals a collapsed **Ball calibration** section in both Basic and Expert views: raw center
 (default 0), G at full deflection (default 0.10 G), and ball-channel limit
 (default ±0.25 G). The conversion is:
 

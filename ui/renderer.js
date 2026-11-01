@@ -420,16 +420,56 @@ function makeMappingRow(output) {
   outputLive.textContent = '—';
   outputLive.title = t('mapping.outputLiveTooltip');
 
-  row.append(enable, sourceSelect, invert, unitSelect, operationSelect, scale, offset, inputLive, outputLabel, outputLive);
+  const filterCells = [];
   const family = state.catalog.units[output.targetUnit]?.family;
   if (!output.integer && !['boolean', 'count'].includes(family)) {
     const unit = ({ g: 'G', radians: 'rad', radps: 'rad/s', mps: 'm/s', meters: 'm', rpm: 'RPM', ratio: '0…1' })[output.targetUnit]
       || localizedLabel(state.catalog.units[output.targetUnit]) || output.targetUnit;
-    const panel = makeSignalFilterPanel(`channel.${output.id}`, output.id, unit,
-      channel.filter, (patch) => updateChannel(output.id, { filter: { ...draftConfig.channels[output.id].filter, ...patch } }));
-    row.appendChild(panel);
+    const rampUnit = unit === 'rad/s' ? 'rad/s²' : unit === 'm/s' ? 'm/s²' : `${unit}/s`;
+    for (const [key, caption] of [['smoothingMs', t('filter.smoothing')], ['ramp', `${t('filter.ramp')} (${rampUnit})`]]) {
+      const cell = document.createElement('label');
+      cell.className = 'inline-filter-field';
+      cell.appendChild(makeSignalFilterInput(output.id, key, caption, channel.filter, (patch) => (
+        updateChannel(output.id, { filter: { ...draftConfig.channels[output.id].filter, ...patch } })
+      )));
+      if (key === 'ramp') {
+        const suffix = document.createElement('small');
+        suffix.textContent = rampUnit;
+        cell.appendChild(suffix);
+      }
+      filterCells.push(cell);
+    }
+  } else {
+    for (let index = 0; index < 2; index++) {
+      const placeholder = document.createElement('span');
+      placeholder.className = 'filter-unavailable';
+      placeholder.textContent = '—';
+      placeholder.title = t('filter.notApplicable');
+      filterCells.push(placeholder);
+    }
   }
+  row.append(enable, sourceSelect, invert, unitSelect, operationSelect, scale, offset,
+    ...filterCells, inputLive, outputLabel, outputLive);
   return row;
+}
+
+function makeSignalFilterInput(label, key, caption, settings, onChange) {
+  const max = key === 'smoothingMs' ? 5000 : 1000000;
+  const input = document.createElement('input');
+  input.type = 'number';
+  input.min = 0;
+  input.max = max;
+  input.step = 'any';
+  input.value = settings?.[key] || 0;
+  input.title = t(key === 'smoothingMs' ? 'filter.smoothingHelp' : 'filter.rampHelp');
+  input.setAttribute('aria-label', `${label}: ${caption}`);
+  input.addEventListener('change', () => {
+    const value = Number(input.value);
+    if (!Number.isFinite(value)) return;
+    input.value = Math.min(max, Math.max(0, value));
+    onChange({ [key]: Number(input.value) });
+  });
+  return input;
 }
 
 function makeSignalFilterPanel(id, label, unit, settings, onChange) {
@@ -446,28 +486,15 @@ function makeSignalFilterPanel(id, label, unit, settings, onChange) {
   panel.appendChild(hint);
   const fields = document.createElement('div');
   fields.className = 'signal-filter-fields';
-  for (const [key, max, caption, help] of [
-    ['smoothingMs', 5000, t('filter.smoothing'), t('filter.smoothingHelp')],
-    ['ramp', 1000000, `${t('filter.ramp')} (${rampUnit})`, t('filter.rampHelp')]
+  for (const [key, caption] of [
+    ['smoothingMs', t('filter.smoothing')],
+    ['ramp', `${t('filter.ramp')} (${rampUnit})`]
   ]) {
     const field = document.createElement('label');
     const title = document.createElement('span');
     title.textContent = caption;
-    const input = document.createElement('input');
-    input.type = 'number';
-    input.min = 0;
-    input.max = max;
-    input.step = 'any';
-    input.value = settings?.[key] || 0;
-    input.title = help;
-    field.title = help;
-    input.setAttribute('aria-label', `${label}: ${caption}`);
-    input.addEventListener('change', () => {
-      const value = Number(input.value);
-      if (!Number.isFinite(value)) return;
-      input.value = Math.min(max, Math.max(0, value));
-      onChange({ [key]: Number(input.value) });
-    });
+    const input = makeSignalFilterInput(label, key, caption, settings, onChange);
+    field.title = input.title;
     field.append(title, input);
     fields.appendChild(field);
   }
@@ -698,8 +725,11 @@ function renderMappings() {
     outputs.forEach((output) => {
       body.appendChild(makeMappingRow(output));
       if (output.id === 'acc.0' && draftConfig.channels['acc.0'].sourceId === 'a2a.ball') {
-        const panel = document.createElement('div');
+        const panel = document.createElement('details');
         panel.className = 'ball-cue-settings';
+        const summary = document.createElement('summary');
+        summary.textContent = `${t('ball.settings')} · L:InclinometerBall`;
+        panel.appendChild(summary);
         const hint = document.createElement('p');
         hint.className = 'hint';
         hint.textContent = t('ball.hint');
